@@ -5,7 +5,7 @@ set -eu
 root="$(cd "$(dirname "$0")/.." && pwd)"
 bin="$root/plugin/bin/Spyglass"
 out="${1:-$root/demo/spyglass-demo.gif}"
-tmp="$(mktemp -d)"; trap 'kill $(jobs -p) 2>/dev/null; rm -rf "$tmp"' EXIT
+tmp="$(mktemp -d)"; trap 'kill $(jobs -p) 2>/dev/null; [ -n "${KEEP_FRAMES:-}" ] && cp "$tmp"/f*.png "$KEEP_FRAMES"/; rm -rf "$tmp"' EXIT
 export SPYGLASS_HOME="$tmp/home" SPYGLASS_CLAUDE_DIR="$tmp/claude" SPYGLASS_NO_REGISTRY=1 HOME="$tmp/user"
 mkdir -p "$SPYGLASS_HOME/sessions" "$SPYGLASS_HOME/stats" "$SPYGLASS_CLAUDE_DIR/projects" "$HOME"
 now=$(date +%s)
@@ -36,30 +36,41 @@ session flaky  web   7 '{"title":"Fix flaky checkout test","titleSource":"custom
 session docs   docs 21 '{"title":"Write API docs for /orders","titleSource":"custom","status":"working","activity":"Writing docs/api/orders.md"}'
 stats auth "Opus 5.5" 34; stats flaky "Sonnet 5.5" 18; stats docs "Haiku 5.5" 9
 
-frame 1.8
-set_ flaky '.status = "waiting" | .activity = "Wants to use Bash" | .permission = {tool: "Bash", detail: "rm -rf node_modules/.cache && npm test -- checkout --repeat 20", at: 1, key: "demo"}'
-frame 2.4
+# 1. Every session at a glance: what it's doing, model, context, plan limits.
+frame 2.0
+# 2. A permission prompt, answered from the panel.
+set_ flaky '.status = "waiting" | .activity = "Wants to use Bash" | .permission = {tool: "Bash", detail: "rm -rf node_modules/.cache && npm test -- checkout --repeat 20", at: '$((now - 40))', key: "demo"}'
+frame 2.6
 set_ flaky 'del(.permission) | .status = "working" | .activity = "Approved from Spyglass"'
 frame 1.2
-set_ docs '.status = "waiting" | .activity = "Asked you" | .asked = {text: "The /orders docs are ready. Should I also add examples for /refunds?", at: 1}'
-frame 2.4
-set_ docs 'del(.asked) | .status = "working" | .activity = "Replied from Spyglass"'
-set_ auth '.status = "done" | .done = 5 | .lastLine = "Done: auth moved to middleware, 48 tests pass, no API changes."'
-frame 2.0
+# 3. Claude asks a question with choices: pick one from the panel.
+set_ docs '.status = "waiting" | .activity = "Asking you a question" | .question = {text: "Which endpoints should get examples?", options: ["Orders", "+ Refunds", "All"], at: 1}'
+frame 2.6
+set_ docs 'del(.question) | .status = "working" | .activity = "Answered from Spyglass"'
+frame 1.2
+# 4. Switch a session's model, with a confirm in the panel.
+frame 2.4 --state '{"confirming:auth":"sonnet"}'
+# 5. Done with its last line; a context warning; a session that ended, ready to resume.
+set_ auth '.status = "done" | .done = 5 | .lastLine = "Done: 48 tests pass, no API changes."'
 session dash api 4 '{"title":"Investigate slow dashboard query","titleSource":"custom","status":"working","activity":"postgres · explain_query"}'
 stats dash "Opus 5.5" 88
-frame 1.8
+jq -n --arg cwd /Users/demo/code/web --argjson s "$((now - 3600))" \
+  '{id: "gone", pid: 999999, cwd: $cwd, started: $s, updated: ($s + 1500), title: "Migrate CI to GitHub Actions", titleSource: "custom", status: "done", term: "iTerm.app"}' \
+  > "$SPYGLASS_HOME/sessions/gone.json"
+frame 2.8
+# 6. Many sessions: compact view.
 for i in 1 2 3; do session "more$i" web $((30 + i)) "{\"title\":\"$(sed -n "${i}p" <<<$'Upgrade React to v19\nAdd dark mode toggle\nTidy unused CSS')\",\"titleSource\":\"custom\",\"status\":\"done\"}"; done
 frame 2.2 --state '{"compact":"true"}'
-set_ flaky '.status = "done" | .lastLine = "Flake fixed: the cart total raced the price fetch; 20/20 runs pass."'
-# Collapsed: the session that just finished is listed (simulated: it flips to done while the panel watches).
+# 7. Collapsed out of the way: only what needs you, and what just finished, shows.
+set_ docs '.status = "waiting" | .activity = "Asked you" | .asked = {text: "The /orders docs are ready. Should I also add examples for /refunds?", at: 1}'
 set_ flaky '.status = "working"'
-( sleep 0.4; set_ flaky '.status = "done"' ) &
+( sleep 0.4; set_ flaky '.status = "done" | .lastLine = "Flake fixed: the cart total raced the price fetch; 20/20 runs pass."' ) &
 n=$((n + 1)); f=$(printf '%s/f%02d.png' "$tmp" "$n")
 "$bin" --selftest --twice --state '{"collapsed":"true"}' --snapshot "$f" >/dev/null 2>&1
 echo "file '$f'" >> "$tmp/list.txt"; echo "duration 2.4" >> "$tmp/list.txt"
-echo "file '$f'" >> "$tmp/list.txt"   # concat needs the last frame repeated
-
+# 8. Click the line to answer right there.
+frame 2.8 --state '{"collapsed":"true","peekOpen:docs":"true"}'
+echo "file '$(printf '%s/f%02d.png' "$tmp" "$n")'" >> "$tmp/list.txt"   # concat needs the last frame repeated
 # Same canvas for every frame (panel at the top), then a palette-optimised GIF.
 w=0; h=0
 for p in "$tmp"/f*.png; do
