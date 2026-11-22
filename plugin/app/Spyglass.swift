@@ -354,7 +354,9 @@ final class Store: ObservableObject {
             fresh = true
             for row in o["rows"] as? [[String: Any]] ?? [] {
                 guard let pid = (row["pid"] as? NSNumber)?.int32Value, let name = row["name"] as? String else { continue }
-                let n = name.trimmingCharacters(in: .whitespaces)
+                // Claude Code prefixes its terminal title with a status symbol ("✳ ", spinner dots): not part of the name.
+                let n = String(name.unicodeScalars.drop { !CharacterSet.alphanumerics.contains($0) && $0 != "(" && $0 != "[" })
+                    .trimmingCharacters(in: .whitespaces)
                 // Not a name you gave it: shell/process names, or a bare version ("2.1.330", Claude Code's process title).
                 let isVersion = n.range(of: #"^v?\d+(\.\d+)+$"#, options: .regularExpression) != nil
                 if !n.isEmpty, !isVersion, !Store.genericTabNames.contains(n.lowercased()) { names[pid] = n }

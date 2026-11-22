@@ -2,6 +2,9 @@
 
 All releases so far were made on 2026-11-22. Versions before 0.16.0 were released under the name Tower. Bugs that escaped to a release, and the check that now catches each, are in [HARNESS.md](HARNESS.md).
 
+## 0.16.1
+- Names no longer start with Claude Code's status symbol ("✳ ") taken from editor tab titles.
+
 ## 0.16.0
 - Renamed from Tower to Spyglass ("Tower" is also a well-known Git client for Mac). Existing installs move automatically: `~/.claude/tower` becomes `~/.claude/spyglass` (the old path stays as a link), panel preferences and the login item carry over, and the editor extension is now `local.spyglass-focus`.
 - The editor core claims each request once, so an old and a new extension running side by side never type twice.

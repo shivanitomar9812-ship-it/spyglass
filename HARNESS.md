@@ -59,6 +59,7 @@ Claude Code 2.1.330, `PermissionRequest` hook (2026-11-22):
 | — | Buttons appeared in hosts where typing can't work (Claude panel, desktop app, JetBrains, cmux) and failed with ⚠︎ | per-session `Caps`; `panel_test.sh` host matrix; `send_test.sh` routing |
 | — | Terminal.app `do script` presses Enter after every key: a test drifted from a dialog into settings and vim (found live) | Terminal.app gets text commands only; keys route to "Answer in Terminal ↗"; never type exploratory commands into test sessions |
 | 0.13.0 | README claimed Claude desktop app sessions show in Spyglass; a live test showed they run in the cloud or a sandboxed VM that ignores local plugins (no hooks, no process, no transcript on the Mac) | support claims need a live session per host before they ship; untested hosts are marked untested |
+| 0.16.0 | Names showed Claude Code's status symbol ("✳ TTD channel…") once Cursor tabs show Claude's title | `panel_test.sh` fixture tab name starts with "✳ " |
 | — | Panel tests ran a binary built before the rename: it ignored the test fixtures and read the real session state (found while renaming to Spyglass) | `panel_test.sh` rebuilds when the Swift source is newer than the binary |
 | — | `record.sh` / `stats.sh` lacked the Homebrew PATH line (found by the harness's first run) | `record_test.sh` runs under launchd PATH |
 | — | Status line truncated the context warning ("⚠︎ ct…") (found in the first snapshot) | look at `panel.png` before shipping UI; warning has top layout priority |

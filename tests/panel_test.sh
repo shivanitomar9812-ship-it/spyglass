@@ -38,7 +38,7 @@ u='"usage":{"input_tokens":1000,"output_tokens":500,"cache_creation_input_tokens
   echo "{\"type\":\"assistant\",\"message\":{\"id\":\"m2\",$u}}"
   echo '{"type":"user","message":{"content":"no usage here"}}'; } > "$SPYGLASS_CLAUDE_DIR/projects/-tmp-repo/ctx.jsonl"
 jq -n --argjson now "$now" --argjson a "$(shell_of tab)" --argjson b "$(shell_of custom)" --argjson c "$(shell_of ver)" \
-  '{ts: $now, rows: [{pid: $a, name: "Seg Lifecycle"}, {pid: $b, name: "Some tab"}, {pid: $c, name: "2.1.330"}]}' > "$SPYGLASS_HOME/terminals/1.json"
+  '{ts: $now, rows: [{pid: $a, name: "✳ Seg Lifecycle"}, {pid: $b, name: "Some tab"}, {pid: $c, name: "2.1.330"}]}' > "$SPYGLASS_HOME/terminals/1.json"
 # A session whose process is gone goes to Recently ended.
 echo "{\"id\":\"gone\",\"pid\":999999,\"cwd\":\"/tmp\",\"title\":\"Gone one\",\"prompt\":\"hi\",\"status\":\"done\",\"updated\":$now}" > "$SPYGLASS_HOME/sessions/gone.json"
 
@@ -46,7 +46,8 @@ out=$(SPYGLASS_NO_REGISTRY=1 "$BIN" --selftest 2>/dev/null)
 row() { echo "$out" | jq -r --arg id "$1" "select(.id == \$id) | $2"; }
 # Escaped bug (0.9.0): the idle reminder showed as "Needs you" (older hooks recorded it as waiting).
 eq "idle reminder shows done" "done" "$(row idle .state)"
-eq "Cursor tab name used" "Seg Lifecycle" "$(row tab .name)"
+# Escaped bug (0.16.0): Claude Code's status symbol in tab titles ("✳ Seg Lifecycle") showed in names.
+eq "Cursor tab name used, status symbol stripped" "Seg Lifecycle" "$(row tab .name)"
 eq "/rename beats tab name" "My rename" "$(row custom .name)"
 # Escaped bug (0.9.0): "2.1.330" (Claude Code's process title) was taken as a name you gave the tab.
 eq "version tab name ignored" "Platform listing famous repositories" "$(row ver .name)"
