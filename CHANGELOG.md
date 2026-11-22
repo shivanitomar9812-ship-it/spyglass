@@ -2,6 +2,12 @@
 
 All releases so far were made on 2026-11-22. Versions before 0.16.0 were released under the name Tower. Bugs that escaped to a release, and the check that now catches each, are in [HARNESS.md](HARNESS.md).
 
+## 0.20.1
+- Yes / No now appear when the question follows a statement ("The docs are ready. Should I also…?"); it used to judge the first word only.
+- `SECURITY.md`: what Spyglass trusts, what it can type, and the trust boundary. `SPYGLASS_BUILD_FROM_SOURCE=1` builds the binary on your Mac.
+- CI tests every push on macOS and attaches its own universal build (with SHA-256) to each release.
+- README: demo GIF (rendered from fake sessions by `demo/storyboard.sh`), test badge, Troubleshooting.
+
 ## 0.20.0
 - Reply from the panel: a question Claude asks in text gets **Yes / No** (for yes/no questions) and **Reply…** (one line, Enter sends). Spyglass types it only while the session waits on you with nothing else open, only where it can type, and never a slash command.
 - Before typing text (a reply, `/model`, `/rename`), Spyglass clears anything half-typed in Claude's input, so a draft can't merge with it.

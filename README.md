@@ -1,10 +1,12 @@
 # Spyglass
 
+[![tests](https://github.com/shivanitomar9812-ship-it/spyglass/actions/workflows/ci.yml/badge.svg)](https://github.com/shivanitomar9812-ship-it/spyglass/actions/workflows/ci.yml)
+
 **A floating panel for every Claude Code session on your Mac.**
 
 Running several Claude Code sessions at once? Spyglass keeps a small always-on-top panel with one row per session: what it's doing right now, which ones need you, how much of your plan you've used. You can answer most prompts from the panel itself, and jump to the exact terminal tab for the rest.
 
-<!-- TODO: demo GIF (record with demo/demo.sh, not real work) -->
+<p align="center"><img src="demo/spyglass-demo.gif" alt="Spyglass: sessions working, a permission prompt allowed from the panel, a question answered with Yes / No, a finished session, a context warning, the compact view, and the collapsed view showing what just finished" width="560"></p>
 
 ## What it shows
 
@@ -102,12 +104,26 @@ The editor extension is a thin loader for `~/.claude/spyglass/editor-core.js`, w
 
 **Privacy:** everything stays on your machine. No network calls, no telemetry. Spyglass's files hold session titles, the first 120 characters of your latest prompt, current tool descriptions, model and usage numbers, and terminal tab names. Session files are removed when a session ends; ended sessions are kept for 24 hours.
 
+## Troubleshooting
+
+| What you see | What to do |
+|---|---|
+| No panel | Click the menu bar icon (the antenna) → **Show Spyglass**, or run `/spyglass:open` |
+| The panel hid and you want it back when something needs you | ⚙ → **Come back when a session needs you** |
+| A row has ↻ or lacks a feature from the changelog | That session started before you updated; restart it with `claude --resume` |
+| No model, context or usage on rows | Run `/spyglass:setup`; the numbers appear when each session's statusline next refreshes (send any message) |
+| Cursor / VS Code: jump or typing does nothing, or "didn't answer" on hover | Run `/spyglass:editor`, then **Developer: Reload Window** once |
+| iTerm2 / Terminal: jump or typing does nothing | Allow Spyglass in System Settings → Privacy & Security → Automation |
+| A session is missing | Only sessions running on this Mac show up (not Claude desktop app or cloud sessions); sessions idle for 12 hours are summarised at the bottom |
+| Something else | `~/.claude/spyglass/spyglass.log` has the panel's starts, exits and why it came back; open an issue with it and your Claude Code version |
+
 ## Configuration
 
 | Variable | Effect |
 |---|---|
 | `SPYGLASS_HOME` | Where state and the installed app live (default `~/.claude/spyglass`) |
 | `SPYGLASS_DISABLE_PANEL=1` | Record state but don't launch the panel |
+| `SPYGLASS_BUILD_FROM_SOURCE=1` | Build the binary on your Mac instead of using the prebuilt one (needs the Xcode Command Line Tools) |
 
 ## Uninstall
 
@@ -126,9 +142,10 @@ tests/run.sh                                     # regression checks: must print
 plugin/app/build.sh                              # native arch → plugin/bin/Spyglass
 plugin/app/build.sh plugin/bin/Spyglass --universal
 scripts/release.sh <version> "<subject>"         # tests → build → bump → push → plugin update → installed == running
+demo/storyboard.sh                               # re-render the README GIF from scripted fake sessions (needs ffmpeg)
 ```
 
-[HARNESS.md](HARNESS.md) explains the checks and lists every bug that escaped them; [CHANGELOG.md](CHANGELOG.md) has the release history.
+[SECURITY.md](SECURITY.md) says what Spyglass trusts and what it can do to a session. [HARNESS.md](HARNESS.md) explains the checks and lists every bug that escaped them; [CHANGELOG.md](CHANGELOG.md) has the release history.
 
 ## License
 

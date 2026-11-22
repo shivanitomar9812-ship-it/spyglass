@@ -635,9 +635,12 @@ final class Store: ObservableObject {
 
     /// "Should I…", "Shall I…", "Do you want…": a yes / no question gets Yes and No buttons.
     static func isYesNo(_ q: String) -> Bool {
-        let first = q.split(separator: " ").first.map { $0.lowercased() } ?? ""
+        // Judge the sentence that asks ("The docs are ready. Should I also…?" -> "Should I also…?").
+        var ask = q
+        if let r = q.range(of: #"[^.!?]*\?\s*$"#, options: .regularExpression) { ask = String(q[r]).trimmingCharacters(in: .whitespaces) }
+        let first = ask.split(separator: " ").first.map { $0.lowercased() } ?? ""
         return ["should", "shall", "do", "does", "did", "can", "could", "would", "will", "is", "are", "want", "ok", "okay"].contains(first)
-            || q.lowercased().contains("go ahead") || q.lowercased().contains("want me to")
+            || ask.lowercased().contains("go ahead") || ask.lowercased().contains("want me to")
     }
 
     func beginReply(_ s: Session) { guard canReply(s) else { return }; replying = s.id; onEditFocus?(true) }

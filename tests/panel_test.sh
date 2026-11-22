@@ -56,6 +56,10 @@ eq "context warning at 91%" "true" "$(row ctx .contextFull)"
 eq "no warning at 6%" "false" "$(row tab .contextFull)"
 eq "permission card" "waiting|rm -rf build" "$(row perm '"\(.state)|\(.permission)"')"
 eq "asked in plain text: waiting, question shown" "waiting|Shall I continue with the welcome card?" "$(row asked '"\(.state)|\(.asked)"')"
+# Escaped (found rendering the demo GIF): yes/no was judged on the first word, so "The docs are ready. Should I…?" got no Yes/No.
+session asked2 '{"title":"Asked after a statement","titleSource":"ai","status":"waiting","asked":{"text":"The /orders docs are ready. Should I also add examples for /refunds?","at":7}}'
+eq "yes/no judged on the asking sentence" "true" "$(SPYGLASS_NO_REGISTRY=1 "$BIN" --selftest 2>/dev/null | jq -r 'select(.id == "asked2") | .yesNo')"
+rm -f "$SPYGLASS_HOME/sessions/asked2.json"
 eq "asked: reply from the panel (Cursor terminal), yes/no question" "true|true" "$(row asked '"\(.canReply)|\(.yesNo)"')"
 cp "$SCRIPTS/send.sh" "$SPYGLASS_HOME/send.sh"; cp "$BIN" "$SPYGLASS_HOME/Spyglass"   # what the panel runs, as installed
 SPYGLASS_SEND_LOG="$TMP/say.log" SPYGLASS_NO_REGISTRY=1 "$BIN" --selftest --say "asked:yes" >/dev/null 2>&1

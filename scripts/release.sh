@@ -39,6 +39,7 @@ if [ -n "${SPYGLASS_GH_USER:-}" ]; then
   export GH_TOKEN
 fi
 git push -q origin HEAD
+git tag "v$ver" && git push -q origin "v$ver"   # never forced; CI tests the tag and attaches its build to a GitHub release
 remote=$(gh api "repos/$(gh repo view --json nameWithOwner -q .nameWithOwner)/commits/HEAD" --jq .sha)
 [ "$remote" = "$(git rev-parse HEAD)" ] || { echo "Push did not reach GitHub"; exit 1; }
 claude plugin marketplace update spyglass >/dev/null

@@ -14,6 +14,10 @@ lock="$home/demo.lock"
 [ -f "$lock" ] && kill -0 "$(cat "$lock" 2>/dev/null)" 2>/dev/null && exit 0
 
 src="$root/bin/Spyglass"
+# SPYGLASS_BUILD_FROM_SOURCE=1: replace the prebuilt binary with one built here, once per installed version (SECURITY.md).
+if [ "${SPYGLASS_BUILD_FROM_SOURCE:-}" = 1 ] && [ ! -f "$root/bin/.built-here" ]; then
+  bash "$root/app/build.sh" "$root/bin/Spyglass" >/dev/null 2>&1 && touch "$root/bin/.built-here"
+fi
 if [ ! -x "$src" ]; then
   bash "$root/app/build.sh" "$root/bin/Spyglass" >/dev/null 2>&1 || exit 0
 fi
