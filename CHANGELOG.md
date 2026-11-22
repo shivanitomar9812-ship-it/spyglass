@@ -2,6 +2,10 @@
 
 All releases so far were made on 2026-11-22. Versions before 0.16.0 were released under the name Tower. Bugs that escaped to a release, and the check that now catches each, are in [HARNESS.md](HARNESS.md).
 
+## 0.18.0
+- A turn that ends by asking you something in plain text ("Shall I go ahead?") now shows as **Needs you**, with the question on the row and a jump to reply. It used to show as Done.
+- First-run welcome card: what Spyglass is, and a setup checklist that ticks itself off (`/spyglass:setup`, the editor extension, the macOS permission note). "Show welcome" in the menu bar brings it back.
+
 ## 0.17.0
 - No dependencies: `jq` is no longer needed. The hooks (`record`, `answer`, `stats`) run inside the Spyglass binary, and the scripts use its small JSON helper. Hooks are also faster (about 12 ms per event, from 22 ms).
 - The JSON helper refuses to change a settings file that isn't plain JSON, so a file with comments is never overwritten.

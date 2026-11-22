@@ -29,6 +29,7 @@ struct Session: Identifiable, Codable, Equatable {
     var source: String?          // "registry" when known only from Claude Code's session registry
     var permission: Permission?  // pending permission prompt (PermissionRequest hook)
     var question: Question?      // pending AskUserQuestion
+    var asked: Asked?            // the turn ended with a question for you (in plain text)
     var entrypoint: String?      // cli, claude-vscode (extension panel), claude-desktop, claude-code-jetbrains-plugin
     var ended: Double?           // set on entries in ended/ (sessions offered for Resume)
     var model: String?           // from stats/<id>.json (statusline), not the hooks
@@ -180,6 +181,12 @@ struct Caps: Equatable {
     let typeText: Bool    // /model, /rename
     let pressKeys: Bool   // Allow (1) / Deny (Esc) / question options
     let resume: Bool      // Resume reopens it (in its terminal, or a terminal app)
+}
+
+/// A turn that ended by asking you something in plain text: answered by replying in the session.
+struct Asked: Codable, Equatable {
+    var text: String
+    var at: Double
 }
 
 struct Permission: Codable, Equatable {
@@ -669,6 +676,49 @@ final class Store: ObservableObject {
             : "Can't type into this terminal (supported: iTerm2, Cursor / VS Code)"
     }
 
+    // MARK: Welcome (first run)
+
+    @Published var showWelcome: Bool = !UserDefaults.standard.bool(forKey: "welcomed")
+    func dismissWelcome() { showWelcome = false; UserDefaults.standard.set(true, forKey: "welcomed") }
+    func reopenWelcome() { showWelcome = true }
+
+    static var userHome: String { ProcessInfo.processInfo.environment["HOME"].flatMap { $0.isEmpty ? nil : $0 } ?? NSHomeDirectory() }
+
+    /// Setup checklist, read live from disk.
+    struct SetupState: Equatable { var stats: Bool; var editors: [String]; var editorExtension: Bool }
+    func setupState() -> SetupState {
+        let fm = FileManager.default, home = Store.userHome
+        // Model / context / usage: the statusline is feeding Spyglass (a recent stats file, or a statusline that calls it).
+        var stats = false
+        let statsDir = Store.home.appendingPathComponent("stats")
+        for u in (try? fm.contentsOfDirectory(at: statsDir, includingPropertiesForKeys: [.contentModificationDateKey])) ?? [] {
+            if let d = try? u.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate,
+               Date().timeIntervalSince(d) < 7 * 86400 { stats = true; break }
+        }
+        if !stats, let d = fm.contents(atPath: home + "/.claude/settings.json"),
+           let o = try? JSONSerialization.jsonObject(with: d) as? [String: Any],
+           let cmd = (o["statusLine"] as? [String: Any])?["command"] as? String {
+            if cmd.contains("spyglass/statusline.sh") { stats = true }
+            else {
+                let first = cmd.split(separator: " ").first.map(String.init) ?? ""
+                let file = first.hasPrefix("~") ? home + first.dropFirst() : first
+                if let t = try? String(contentsOfFile: file.replacingOccurrences(of: "\"", with: ""), encoding: .utf8),
+                   t.contains("spyglass/stats.sh") || t.contains("tower/stats.sh") { stats = true }
+            }
+        }
+        // Editors installed, and whether the Spyglass Focus extension is in any of them.
+        var editors: [String] = []
+        for (app, name) in [("Cursor", "Cursor"), ("Visual Studio Code", "VS Code"), ("Windsurf", "Windsurf")]
+        where fm.fileExists(atPath: "/Applications/\(app).app") || fm.fileExists(atPath: home + "/Applications/\(app).app") {
+            editors.append(name)
+        }
+        var ext = false
+        for dir in [".cursor/extensions", ".vscode/extensions", ".windsurf/extensions"] {
+            if ((try? fm.contentsOfDirectory(atPath: home + "/" + dir)) ?? []).contains(where: { $0.hasPrefix("local.spyglass-focus-") }) { ext = true }
+        }
+        return SetupState(stats: stats, editors: editors, editorExtension: ext)
+    }
+
     // MARK: Hover text
 
     private var branches: [String: (branch: String?, checked: Double)] = [:]
@@ -710,6 +760,7 @@ final class Store: ObservableObject {
         case "working": return "Working for \(Store.ago(s.turnStarted ?? s.started) ?? "a moment")"
         case "waiting":
             if let q = s.question { return "Needs you: Claude asks \"\(q.text)\"" }
+            if let a = s.asked { return "Needs you: Claude asked \"\(a.text)\"" }
             if let p = s.permission { return "Needs you: wants to use \(p.tool ?? "a tool")" }
             return "Needs you: \(s.activity ?? "waiting for your input")"
         case "done": return "Done \(Store.ago(s.updated).map { "\($0) ago" } ?? "")"
@@ -1176,7 +1227,9 @@ struct Row: View {
                     }
                 }
                 .font(.system(size: 11, weight: .semibold)).lineLimit(1)
-                if s.state == "waiting", (s.question != nil && !store.caps(s).pressKeys)
+                if s.state == "waiting", s.question == nil, s.permission == nil, let a = s.asked {
+                    AskedCard(s: s, asked: a, store: store)
+                } else if s.state == "waiting", (s.question != nil && !store.caps(s).pressKeys)
                     || (s.question == nil && s.permission != nil && !store.canAnswerPermission(s)) {
                     AnswerThere(s: s, store: store)
                 } else if s.state == "waiting", let q = s.question { QuestionCard(s: s, q: q, store: store) }
@@ -1233,6 +1286,22 @@ struct PermissionCard: View {
                 }
                 Spacer()
             }
+        }
+        .padding(.top, 2)
+    }
+}
+
+/// Claude ended its turn with a question: show it, and jump to the session to reply.
+struct AskedCard: View {
+    let s: Session
+    let asked: Asked
+    @ObservedObject var store: Store
+    var body: some View {
+        VStack(alignment: .leading, spacing: 5) {
+            Text(asked.text).font(.system(size: 11.5, weight: .semibold)).foregroundColor(.white.opacity(0.9))
+                .lineLimit(3).fixedSize(horizontal: false, vertical: true).tip(asked.text)
+            ReplyButton(title: "Reply in \(store.caps(s).app) ↗", color: accent) { store.jump(s) }
+                .tip("Jump to \(store.terminalLabel(s)) to answer")
         }
         .padding(.top, 2)
     }
@@ -1361,6 +1430,48 @@ struct ModelPicker: View {
                  : "Model can be switched once the session is idle")
             }
         }
+    }
+}
+
+/// First run: what Spyglass is, and a setup checklist that ticks itself off.
+struct WelcomeCard: View {
+    @ObservedObject var store: Store
+    @State private var setup = Store.SetupState(stats: false, editors: [], editorExtension: false)
+    let timer = Timer.publish(every: 3, on: .main, in: .common).autoconnect()
+
+    func item(_ done: Bool, _ title: String, _ hint: String, note: Bool = false) -> some View {
+        HStack(alignment: .top, spacing: 8) {
+            Image(systemName: note ? "info.circle" : done ? "checkmark.circle.fill" : "circle")
+                .font(.system(size: 12, weight: .semibold)).foregroundColor(done ? accent : .white.opacity(note ? 0.6 : 0.45))
+            VStack(alignment: .leading, spacing: 1) {
+                Text(title).font(.system(size: 12, weight: .semibold)).foregroundColor(.white.opacity(done ? 0.6 : 0.92))
+                if !done { Text(hint).font(.system(size: 11)).foregroundColor(.white.opacity(0.6)).fixedSize(horizontal: false, vertical: true) }
+            }
+        }
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 9) {
+            Text("Welcome to Spyglass").font(.system(size: 14, weight: .bold)).foregroundColor(.white)
+            Text("One row for every Claude Code session on this Mac: what it's doing, what needs you, and how much of your plan you've used. Answer prompts right here. Everything stays on your Mac.")
+                .font(.system(size: 11.5)).foregroundColor(.white.opacity(0.7)).fixedSize(horizontal: false, vertical: true)
+            item(setup.stats, "Model, context and plan usage", "Run /spyglass:setup in any Claude session.")
+            if !setup.editors.isEmpty {
+                item(setup.editorExtension, "\(setup.editors.joined(separator: " / ")): jump to and type into tabs",
+                     "Run /spyglass:editor, then reload the editor window once.")
+            }
+            item(false, "macOS will ask once to let Spyglass control your terminal",
+                 "When you first jump to or answer a session in iTerm2 or Terminal. Choose Allow.", note: true)
+            HStack {
+                Spacer()
+                ReplyButton(title: "Got it", color: accent) { store.dismissWelcome() }
+            }
+        }
+        .padding(12)
+        .background(RoundedRectangle(cornerRadius: 12).fill(Color.white.opacity(0.07)))
+        .overlay(RoundedRectangle(cornerRadius: 12).stroke(accent.opacity(0.35), lineWidth: 1))
+        .onAppear { setup = store.setupState() }
+        .onReceive(timer) { _ in setup = store.setupState() }
     }
 }
 
@@ -1532,6 +1643,7 @@ struct SpyglassView: View {
                            help: store.collapsed ? "Expand" : "Collapse") { store.toggleCollapse() }
                 IconButton(symbol: "xmark", help: "Hide Spyglass (bring it back from the menu bar)") { store.hidePanel() }
             }
+            if store.showWelcome && !store.collapsed { WelcomeCard(store: store) }
             if !store.limits.isEmpty { UsageLine(limits: store.limits) }
             if !store.collapsed {
                 if store.sessions.isEmpty {
@@ -1717,11 +1829,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     func showPanel() { panel.orderFrontRegardless(); UserDefaults.standard.set(false, forKey: "panelHidden") }
     func hidePanel() { TipCenter.shared.hide(); panel.orderOut(nil); UserDefaults.standard.set(true, forKey: "panelHidden") }
     @objc func togglePanel() { panel.isVisible ? hidePanel() : showPanel() }
+    @objc func showWelcome() { store.reopenWelcome(); showPanel() }
     @objc func quit() { quitReason = "quit from menu bar"; NSApp.terminate(nil) }
 
     func menuNeedsUpdate(_ menu: NSMenu) {
         menu.removeAllItems()
         menu.addItem(withTitle: panel.isVisible ? "Hide Spyglass" : "Show Spyglass", action: #selector(togglePanel), keyEquivalent: "")
+        menu.addItem(withTitle: "Show welcome", action: #selector(showWelcome), keyEquivalent: "")
         menu.addItem(.separator())
         menu.addItem(withTitle: "Quit Spyglass", action: #selector(quit), keyEquivalent: "")
         menu.items.forEach { $0.target = self }
@@ -1819,6 +1933,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     store.muted = true
     store.showEnded = true
     store.compact = false   // tests choose with --state {"compact":"true"}; never the user's saved preference
+    store.collapsed = false; store.muted = true   // likewise: snapshots never depend on the user's panel settings
+    store.showWelcome = false                     // --state {"welcome":"true"} shows it
     if let i = args.firstIndex(of: "--state"), i + 1 < args.count, let data = args[i + 1].data(using: .utf8),
        let o = try? JSONSerialization.jsonObject(with: data) as? [String: String] {
         // UI state that only clicks create, e.g. {"confirming:<id>":"sonnet","editing":"<id>"}
@@ -1826,6 +1942,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             if k.hasPrefix("confirming:") { store.confirming[String(k.dropFirst(11))] = v }
             if k == "editing" { store.editing = v }
             if k == "compact" { store.compact = v == "true" }
+            if k == "welcome" { store.showWelcome = v == "true" }
         }
     }
     var wakes: [String] = []
@@ -1846,6 +1963,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                                       "canRename": store.canRename(s)]
             row["model"] = s.model; row["ctx"] = s.ctx; row["tabName"] = s.tabName
             row["permission"] = s.permission?.detail
+            row["asked"] = s.asked?.text
             row["canAnswer"] = s.permission != nil ? store.canAnswerPermission(s) : nil
             row["question"] = s.question.map { "\($0.text)|\(($0.options ?? []).joined(separator: ","))" }
             row["tokens"] = s.tokens?.used; row["usage"] = store.usageLabel(s)
@@ -1866,6 +1984,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             let z = TipCenter.measure(t)
             print("{\"tip\":\"\(name)\",\"w\":\(Int(z.width)),\"h\":\(Int(z.height))}")
         }
+        let st = store.setupState()
+        print("{\"setup\":{\"stats\":\(st.stats),\"editors\":\"\(st.editors.joined(separator: ","))\",\"extension\":\(st.editorExtension)}}")
         print("{\"overLimit\":\(store.overLimit),\"spend\":\(store.spendLimit?.usd.map { String($0) } ?? "null")}")
         for e in store.ended { print("{\"ended\":\"\(e.id)\",\"name\":\"\(e.displayTitle)\"}") }
     }
@@ -2093,6 +2213,21 @@ enum CLI {
         return (try? JSONSerialization.jsonObject(with: last)) as? [String: Any]
     }
 
+    /// The question a reply ends with, if its last line asks one ("…, shall I go ahead?"). Code blocks don't count.
+    static func endingQuestion(_ message: String?) -> String? {
+        guard let m = message?.trimmingCharacters(in: .whitespacesAndNewlines), !m.isEmpty, !m.hasSuffix("```") else { return nil }
+        guard var last = m.split(separator: "\n", omittingEmptySubsequences: true).last.map(String.init) else { return nil }
+        last = last.replacingOccurrences(of: "**", with: "").replacingOccurrences(of: "`", with: "")
+            .trimmingCharacters(in: .whitespaces)
+        if last.hasPrefix("- ") || last.hasPrefix("* ") { last.removeFirst(2) }
+        guard last.hasSuffix("?") else { return nil }
+        // A long last line: keep its last sentence or two, which is the question.
+        if last.count > 200, let r = last.range(of: #"[^.!?]*\?$"#, options: .regularExpression) {
+            last = String(last[r]).trimmingCharacters(in: .whitespaces)
+        }
+        return cut(last, 200)
+    }
+
     static func activity(_ tool: String, _ i: [String: Any]) -> String {
         func str(_ k: String) -> String? { i[k] as? String }
         let base = ((str("file_path") ?? str("notebook_path") ?? "") as NSString).lastPathComponent
@@ -2186,6 +2321,7 @@ enum CLI {
         let tool = input["tool_name"] as? String ?? ""
         let ti = input["tool_input"] as? [String: Any] ?? [:]
         if ["SessionStart", "UserPromptSubmit", "PreToolUse", "PostToolUse", "Stop"].contains(ev) { o.removeValue(forKey: "permission") }
+        if ev != "Notification" { o.removeValue(forKey: "asked") }   // any activity answers or supersedes it
         if ["SessionStart", "UserPromptSubmit", "PostToolUse", "Stop"].contains(ev) || (ev == "PreToolUse" && tool != "AskUserQuestion") {
             o.removeValue(forKey: "question")
         }
@@ -2224,6 +2360,10 @@ enum CLI {
             }
         case "Stop":
             o["status"] = "done"; o["activity"] = "Finished — ready for you"
+            // A turn that ends by asking you something is waiting on you, even without a prompt or question tool.
+            if let q = endingQuestion(input["last_assistant_message"] as? String) {
+                o["status"] = "waiting"; o["activity"] = "Asked you: " + cut(q, 70); o["asked"] = ["text": q, "at": now]
+            }
         default: break
         }
         JSON.save(o, to: f)

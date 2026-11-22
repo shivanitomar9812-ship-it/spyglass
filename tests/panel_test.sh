@@ -27,6 +27,7 @@ session ctx    '{"title":"Big context","titleSource":"ai","status":"working","ac
 session ask    '{"title":"Asks a question","titleSource":"ai","status":"waiting","activity":"Asking you a question","question":{"text":"Which fruit would you like?","options":["Apple","Banana","Cherry"],"at":5}}'
 # Old hooks recorded questions as permission prompts: never show Allow/Deny for them.
 session oldask '{"title":"Old hook question","titleSource":"ai","status":"waiting","permission":{"tool":"AskUserQuestion","detail":"","at":2}}'
+session asked  '{"title":"Asked in text","titleSource":"ai","status":"waiting","activity":"Asked you: Shall I continue?","asked":{"text":"Shall I continue with the welcome card?","at":6}}'
 session perm   '{"title":"Needs approval","titleSource":"ai","status":"waiting","activity":"Wants to use Bash","permission":{"tool":"Bash","detail":"rm -rf build","at":1}}'
 lim="{\"five_hour\":{\"pct\":17,\"resets\":$((now + 3600))},\"seven_day\":{\"pct\":93,\"resets\":$((now + 400000))}}"
 echo "{\"model\":\"Opus 5.5\",\"ctx\":91,\"ctxTokens\":910000,\"ctxSize\":1000000,\"cost\":3300.79,\"limits\":$lim,\"updated\":$now}" > "$SPYGLASS_HOME/stats/ctx.json"
@@ -54,6 +55,8 @@ eq "version tab name ignored" "Platform listing famous repositories" "$(row ver 
 eq "context warning at 91%" "true" "$(row ctx .contextFull)"
 eq "no warning at 6%" "false" "$(row tab .contextFull)"
 eq "permission card" "waiting|rm -rf build" "$(row perm '"\(.state)|\(.permission)"')"
+eq "asked in plain text: waiting, question shown" "waiting|Shall I continue with the welcome card?" "$(row asked '"\(.state)|\(.asked)"')"
+eq "asked: hover says so" 1 "$(row asked .hover | grep -cF 'Claude asked "Shall I continue')"
 eq "question card" "Which fruit would you like?|Apple,Banana,Cherry" "$(row ask .question)"
 # Escaped bug (0.12.0): .help tooltips never show on Spyglass's non-activating panel; hover text must use .tip.
 eq "no .help tooltips in the panel" 0 "$(grep -c '\.help(' "$ROOT/plugin/app/Spyglass.swift")"
@@ -118,7 +121,7 @@ for f in "$SPYGLASS_HOME"/stats/*.json; do jq --argjson l "$lim" '.limits = $l' 
 
 # Compact view: rows that need you (or are mid-action) stay full; the rest are one line, grouped by repo (6+ sessions).
 out3=$(SPYGLASS_NO_REGISTRY=1 "$BIN" --selftest --state '{"confirming:tab":"sonnet","compact":"true"}' 2>/dev/null)
-eq "compact: full rows" '["ask","ctx","oldask","perm","tab"]' "$(echo "$out3" | jq -c 'select(.compact) | .compact.full | sort')"
+eq "compact: full rows" '["ask","asked","ctx","oldask","perm","tab"]' "$(echo "$out3" | jq -c 'select(.compact) | .compact.full | sort')"
 eq "compact: groups by repo" '[{"name":"k8s-apps","rows":["custom","ver"]},{"name":"repo","rows":["idle"]}]' \
   "$(echo "$out3" | jq -c 'select(.compact) | .compact.groups | map(.rows |= sort)')"
 
@@ -163,9 +166,20 @@ eq "old-hook Terminal prompt: jump only" "false" "$(SPYGLASS_NO_REGISTRY=1 "$BIN
 SPYGLASS_NO_REGISTRY=1 "$BIN" --snapshot "$ROOT/tests/out/panel-hosts.png" 2>/dev/null
 export SPYGLASS_HOME="$TMP/spyglass"
 
+# Welcome card checklist ticks itself off (fake home; which editors are installed is machine-specific, so not asserted).
+WH="$TMP/welcome-home"; mkdir -p "$WH/.claude"
+setup_of() { HOME="$WH" SPYGLASS_HOME="$WH/.claude/spyglass" SPYGLASS_NO_REGISTRY=1 "$BIN" --selftest 2>/dev/null | jq -c 'select(.setup) | .setup | {stats, extension}'; }
+eq "fresh install: nothing set up" '{"stats":false,"extension":false}' "$(setup_of)"
+mkdir -p "$WH/.claude/spyglass/stats" "$WH/.cursor/extensions/local.spyglass-focus-0.5.0"; echo "{\"updated\":$(date +%s)}" > "$WH/.claude/spyglass/stats/x.json"
+eq "after setup and the editor extension: ticked" '{"stats":true,"extension":true}' "$(setup_of)"
+rm -rf "$WH/.claude/spyglass/stats"; printf '#!/bin/bash\nin=$(cat)\n~/.claude/spyglass/stats.sh <<<"$in"\n' > "$WH/sl.sh"
+echo '{"statusLine":{"type":"command","command":"~/sl.sh"}}' > "$WH/.claude/settings.json"
+eq "a statusline that feeds Spyglass counts before any stats arrive" "true" "$(setup_of | jq -r .stats)"
+
 # Snapshots to look at (not compared): full rows with a model confirm card, and compact view.
 mkdir -p "$ROOT/tests/out"
 SPYGLASS_NO_REGISTRY=1 "$BIN" --snapshot "$ROOT/tests/out/panel.png" --state '{"confirming:tab":"sonnet"}' 2>/dev/null
+HOME="$WH" SPYGLASS_NO_REGISTRY=1 "$BIN" --snapshot "$ROOT/tests/out/panel-welcome.png" --state '{"welcome":"true","compact":"true"}' 2>/dev/null
 SPYGLASS_NO_REGISTRY=1 "$BIN" --snapshot "$ROOT/tests/out/panel-compact.png" --state '{"compact":"true"}' 2>/dev/null
 eq "snapshots rendered" "yes|yes" "$([ -s "$ROOT/tests/out/panel.png" ] && echo yes || echo no)|$([ -s "$ROOT/tests/out/panel-compact.png" ] && echo yes || echo no)"
 kill "${pids[@]}" 2>/dev/null

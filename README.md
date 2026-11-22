@@ -9,7 +9,7 @@ Running several Claude Code sessions at once? Spyglass keeps a small always-on-t
 ## What it shows
 
 - 🟢 **Working**: live activity ("Running kubectl get pods", "Editing api.ts"), `3/5 steps` on a task list, elapsed time otherwise
-- 🟠 **Needs you**: permission prompts and questions float to the top with an orange outline
+- 🟠 **Needs you**: permission prompts and questions float to the top with an orange outline, including a turn that simply ends by asking you something ("Shall I go ahead?")
 - ✅ **Done**: finished turns, ready for your next prompt
 - **Names you recognise**: your `/rename`, else the name you gave the Cursor / VS Code tab, else Claude's own title
 - **Model and context** on every row; at 85% context the row turns red, with one sound, so you can `/compact` first
@@ -56,7 +56,7 @@ Inside Claude Code:
 /plugin install spyglass@spyglass
 ```
 
-Start a new Claude Code session and the panel appears in the top-right corner. Drag it wherever you like; it remembers.
+Start a new Claude Code session and the panel appears in the top-right corner, with a short welcome card and a setup checklist that ticks itself off. Drag the panel wherever you like; it remembers.
 
 Optional:
 

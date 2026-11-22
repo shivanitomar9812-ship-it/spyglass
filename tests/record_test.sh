@@ -39,6 +39,19 @@ eq "real notification waits" "waiting" "$(field a .status)"
 CLAUDE_CODE_ENTRYPOINT=claude-vscode hook '{"session_id":"v","hook_event_name":"SessionStart","cwd":"/tmp"}'
 eq "entrypoint recorded" "claude-vscode" "$(field v .entrypoint)"
 
+# A turn that ends by asking you something (plain text, no question tool) waits on you. Escaped (0.17.0): it showed as Done.
+stop() { hook "{\"session_id\":\"t\",\"hook_event_name\":\"Stop\",\"last_assistant_message\":$(printf '%s' "$1" | "$ROOT/plugin/bin/Spyglass" json make --str m "$(cat)" | sed 's/^{"m"://; s/}$//')}"; }
+stop $'Built it.\n\nShall I continue with the **welcome card**?'
+eq "ends with a question: waiting" "waiting|Shall I continue with the welcome card?" "$(field t '"\(.status)|\(.asked.text)"')"
+hook '{"session_id":"t","hook_event_name":"Notification","notification_type":"idle_prompt","message":"Claude is waiting for your input"}'
+eq "idle reminder keeps the question" "waiting" "$(field t .status)"
+hook '{"session_id":"t","hook_event_name":"UserPromptSubmit","prompt":"yes"}'
+eq "your reply clears it" "null|working" "$(field t '"\(.asked)|\(.status)"')"
+stop $'All done. Released as 0.17.0.'
+eq "plain ending: done" "done|null" "$(field t '"\(.status)|\(.asked)"')"
+stop $'Here is the fix:\n```\nif ok? then\n```'
+eq "code block ending: done" "done" "$(field t .status)"
+
 # Titles: /rename (custom) beats the AI title.
 tp="$TMP/t.jsonl"; echo '{"type":"ai-title","aiTitle":"Auto name"}' > "$tp"
 hook "{\"session_id\":\"b\",\"hook_event_name\":\"Stop\",\"transcript_path\":\"$tp\"}"
