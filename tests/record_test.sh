@@ -54,4 +54,7 @@ hook '{"session_id":"empty","hook_event_name":"SessionEnd"}'
 eq "ended kept" "fix the bug" "$(jq -r .prompt "$SPYGLASS_HOME/ended/a.json" 2>/dev/null)"
 eq "empty not kept" "no" "$([ -f "$SPYGLASS_HOME/ended/empty.json" ] && echo yes || echo no)"
 eq "live file removed" "no" "$([ -f "$SPYGLASS_HOME/sessions/a.json" ] && echo yes || echo no)"
+# Escaped bug (0.6.1): under launchd, jq was not on PATH and nothing reached Cursor. Since 0.17.0 Spyglass needs no
+# jq at all: the JSON work is in its binary. No plugin script may call jq or perl again (comments aside).
+eq "no jq or perl in plugin scripts" "" "$(grep -nE '(^|[^#]*[;&|(]\s*|^\s*)(jq|perl) ' "$SCRIPTS"/*.sh | grep -v '^\S*:\s*#' | grep -v 'statuslines often use' )"
 finish

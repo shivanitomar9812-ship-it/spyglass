@@ -1,8 +1,8 @@
 #!/bin/bash
 # Reopen an ended Claude session in a new terminal tab. Args: TERM_PROGRAM, app bundle id, cwd, session id.
 # Exit: 0 opened, 1 failed, 2 no reply from Cursor / VS Code (extension missing or older than v0.4), 3 bad session id, 5 folder gone.
-# Spyglass runs under launchd, whose PATH lacks Homebrew (jq).
-export PATH="/opt/homebrew/bin:/usr/local/bin:$PATH"
+here="$(cd "$(dirname "$0")" && pwd)"
+SG="$here/../bin/Spyglass"; [ -x "$SG" ] || SG="${SPYGLASS_HOME:-$HOME/.claude/spyglass}/Spyglass"   # JSON helper (no jq)
 term="$1"; bundle="$2"; cwd="$3"; sid="$4"
 home="${SPYGLASS_HOME:-$HOME/.claude/spyglass}"
 [[ "$sid" =~ ^[0-9a-fA-F-]{36}$ ]] || exit 3
@@ -43,11 +43,11 @@ case "$term" in
     # Cursor/VS Code: the frontmost window's spyglass-focus extension opens a terminal in cwd and resumes there.
     [ -n "$bundle" ] && open -b "$bundle"
     sleep 0.7
-    ts=$(perl -MTime::HiRes=time -e 'printf "%.3f", time')
-    jq -n --argjson ts "$ts" --arg cwd "$cwd" --arg id "$sid" '{ts: $ts, cwd: $cwd, id: $id}' \
+    ts=$("$SG" json now)
+    "$SG" json make --json ts "$ts" --str cwd "$cwd" --str id "$sid" \
       > "$home/resume-request.json.tmp" && mv "$home/resume-request.json.tmp" "$home/resume-request.json"
     for _ in $(seq 1 30); do
-      ok=$(jq -r --argjson ts "$ts" 'select(.ts == $ts) | .ok' "$home/resume-response.json" 2>/dev/null)
+      ok=""; "$SG" json eq "$home/resume-response.json" .ts "$ts" && ok=$("$SG" json get "$home/resume-response.json" .ok)
       [ "$ok" = "true" ] && exit 0
       [ "$ok" = "false" ] && exit 1
       sleep 0.1

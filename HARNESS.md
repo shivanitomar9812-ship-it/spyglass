@@ -22,6 +22,7 @@ scripts/release.sh 0.10.0 "Subject" ["Body"]   # tests -> universal build -> bum
 ## Rules the tests encode
 
 - Scripts the panel runs are tested **under launchd's PATH** (`launchd` helper in `tests/lib.sh`), never from a shell.
+- No dependencies: plugin scripts never call `jq` or `perl` (`record_test.sh` greps for it); JSON goes through `Spyglass json …`. The statusline wrapper still puts Homebrew on PATH, but only for *your* statusline, which may use it.
 - `send.sh` is tested through `SPYGLASS_SEND_LOG` with a fake Claude that behaves like the real one (writes the transcript, saves the default model, asks "Switch model?" when the conversation is cached).
 - Don't use `.help` (macOS hides tooltips of inactive apps); use `.tip`.
 - UI changes are not shipped without looking at `tests/out/panel.png`. `--state` sets click-only UI state (e.g. a model confirm card).
@@ -60,6 +61,7 @@ Claude Code 2.1.330, `PermissionRequest` hook (2026-11-22):
 | — | Terminal.app `do script` presses Enter after every key: a test drifted from a dialog into settings and vim (found live) | Terminal.app gets text commands only; keys route to "Answer in Terminal ↗"; never type exploratory commands into test sessions |
 | 0.13.0 | README claimed Claude desktop app sessions show in Spyglass; a live test showed they run in the cloud or a sandboxed VM that ignores local plugins (no hooks, no process, no transcript on the Mac) | support claims need a live session per host before they ship; untested hosts are marked untested |
 | 0.16.0 | Names showed Claude Code's status symbol ("✳ TTD channel…") once Cursor tabs show Claude's title | `panel_test.sh` fixture tab name starts with "✳ " |
+| 0.17.0 (caught) | Dropping Homebrew from the statusline wrapper's PATH broke the user's own statusline (it uses jq) | `setup_test.sh` "your statusline shows as before" runs a jq-using statusline under launchd PATH |
 | — | Panel tests ran a binary built before the rename: it ignored the test fixtures and read the real session state (found while renaming to Spyglass) | `panel_test.sh` rebuilds when the Swift source is newer than the binary |
 | — | `record.sh` / `stats.sh` lacked the Homebrew PATH line (found by the harness's first run) | `record_test.sh` runs under launchd PATH |
 | — | Status line truncated the context warning ("⚠︎ ct…") (found in the first snapshot) | look at `panel.png` before shipping UI; warning has top layout priority |

@@ -82,6 +82,4 @@ eq "Terminal: no answer key"    "none key:1|2"           "$(r Apple_Terminal ans
 eq "cmux: not possible"         "none /model opus|2"     "$(r cmux '/model opus')"
 unset SPYGLASS_SEND_ROUTE
 
-# Escaped bug (0.6.1): under launchd, jq was not on PATH and nothing reached Cursor.
-eq "send.sh finds jq under launchd" "ok" "$(launchd bash -c "eval \"\$(grep '^export PATH' '$SCRIPTS/send.sh')\"; command -v jq >/dev/null && echo ok")"
 finish

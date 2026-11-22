@@ -1,8 +1,8 @@
 #!/bin/bash
 # Bring a Claude session's terminal tab to the front. Args: TERM_PROGRAM, tty, app bundle id, [cmux workspace, cmux surface,
 # claude pid, entrypoint, cwd].
-# Spyglass runs under launchd, whose PATH lacks Homebrew (jq).
-export PATH="/opt/homebrew/bin:/usr/local/bin:$PATH"
+here="$(cd "$(dirname "$0")" && pwd)"
+SG="$here/../bin/Spyglass"; [ -x "$SG" ] || SG="${SPYGLASS_HOME:-$HOME/.claude/spyglass}/Spyglass"   # JSON helper (no jq)
 app="$1"; tty="$2"; bundle="$3"; cws="$4"; csf="$5"; cpid="$6"; entry="${7:-}"; cwd="${8:-}"
 
 # Not a terminal: the Claude desktop app, the Claude extension panel in Cursor / VS Code, or a JetBrains IDE.
@@ -11,11 +11,11 @@ case "$entry" in
   *jetbrains*) [ -n "$bundle" ] && open -b "$bundle"; exit 0 ;;
   claude-vscode)
     # The spyglass-focus extension in the window that has this folder open focuses Claude's input there.
-    d="${SPYGLASS_HOME:-$HOME/.claude/spyglass}"; ts=$(perl -MTime::HiRes=time -e 'printf "%.3f", time')
-    jq -n --argjson ts "$ts" --arg cwd "$cwd" '{ts: $ts, claudePanel: true, cwd: $cwd}' > "$d/focus-request.json"
+    d="${SPYGLASS_HOME:-$HOME/.claude/spyglass}"; ts=$("$SG" json now)
+    "$SG" json make --json ts "$ts" --json claudePanel true --str cwd "$cwd" > "$d/focus-request.json"
     target=""
     for _ in $(seq 1 20); do
-      target=$(jq -r --argjson ts "$ts" 'select(.ts == $ts) | .target' "$d/focus-response.json" 2>/dev/null)
+      "$SG" json eq "$d/focus-response.json" .ts "$ts" && target=$("$SG" json get "$d/focus-response.json" .target)
       [ -n "$target" ] && break; sleep 0.1
     done
     if [ -n "$bundle" ]; then if [ -n "$target" ]; then open -b "$bundle" "$target"; else open -b "$bundle"; fi; fi
@@ -88,11 +88,11 @@ OSA
 elif [ "$app" = "vscode" ] && [ -n "$cpid" ] && [ -n "$bundle" ]; then
   # Cursor/VS Code: the spyglass-focus extension in the owning window shows the terminal whose shell is claude's parent.
   shell=$(ps -o ppid= -p "$cpid" | tr -d ' ')
-  d="$HOME/.claude/spyglass"; ts=$(perl -MTime::HiRes=time -e 'printf "%.3f", time')
+  d="${SPYGLASS_HOME:-$HOME/.claude/spyglass}"; ts=$("$SG" json now)
   printf '{"ts":%s,"shellPid":%s}' "$ts" "${shell:-0}" > "$d/focus-request.json"
   target=""
   for _ in $(seq 1 20); do
-    target=$(jq -r --argjson ts "$ts" 'select(.ts == $ts) | .target' "$d/focus-response.json" 2>/dev/null)
+    "$SG" json eq "$d/focus-response.json" .ts "$ts" && target=$("$SG" json get "$d/focus-response.json" .target)
     [ -n "$target" ] && break; sleep 0.1
   done
   if [ -n "$target" ]; then open -b "$bundle" "$target"; else open -b "$bundle"; fi

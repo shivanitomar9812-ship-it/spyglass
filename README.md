@@ -75,7 +75,7 @@ Then run once:
 
 `/spyglass:setup` feeds Spyglass the data Claude Code only gives to the statusline. It wraps whatever statusline you have, so it looks exactly as before (or adds a short one if you have none), backs up `settings.json` first, and `/spyglass:setup off` puts your original back.
 
-**Requirements:** macOS 13+, `jq` (`brew install jq`). A prebuilt universal binary is included; if it can't run, Spyglass builds itself with the Xcode Command Line Tools.
+**Requirements:** macOS 13+. Nothing else to install: a prebuilt universal binary is included (if it can't run, Spyglass builds itself with the Xcode Command Line Tools).
 
 ## How it works
 

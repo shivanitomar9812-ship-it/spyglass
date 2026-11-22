@@ -5,8 +5,8 @@
 # pending), "answer:<1-4>" to pick an option of Claude's pending question (same guard), or "rename:<name>" to /rename the
 # session and its terminal tab. Exit: 0 done, 1 failed / didn't apply,
 # 2 terminal not supported, 3 not allowed, 4 prompt gone.
-# Spyglass runs under launchd, whose PATH lacks Homebrew (jq).
-export PATH="/opt/homebrew/bin:/usr/local/bin:$PATH"
+here="$(cd "$(dirname "$0")" && pwd)"
+SG="$here/../bin/Spyglass"; [ -x "$SG" ] || SG="${SPYGLASS_HOME:-$HOME/.claude/spyglass}/Spyglass"   # JSON helper (no jq)
 app="$1"; tty="$2"; bundle="$3"; cws="$4"; csf="$5"; cpid="$6"; cmd="$7"; sid="${8:-}"; at="${9:-}"
 home="${SPYGLASS_HOME:-$HOME/.claude/spyglass}"
 case "$cmd" in
@@ -15,14 +15,16 @@ case "$cmd" in
     kind=key
     # Answer only the prompt the user saw: a stale click must not press Esc on a working session (that interrupts it).
     [ -n "$sid" ] && [ -n "$at" ] || exit 3
-    jq -e --argjson at "$at" '.status == "waiting" and .permission.at == $at' "$home/sessions/$sid.json" >/dev/null 2>&1 || exit 4 ;;
+    sf="$home/sessions/$sid.json"
+    "$SG" json eq "$sf" .status '"waiting"' && "$SG" json eq "$sf" .permission.at "$at" || exit 4 ;;
   answer:[1-4])
     kind=answer
     # Only the question the user saw, still pending.
     [ -n "$sid" ] && [ -n "$at" ] || exit 3
     n="${cmd#answer:}"
-    jq -e --argjson at "$at" --argjson n "$n" '.status == "waiting" and .question.at == $at and ((.question.options // []) | length) >= $n' \
-      "$home/sessions/$sid.json" >/dev/null 2>&1 || exit 4 ;;
+    sf="$home/sessions/$sid.json"
+    "$SG" json eq "$sf" .status '"waiting"' && "$SG" json eq "$sf" .question.at "$at" \
+      && [ -n "$("$SG" json get "$sf" ".question.options.$((n - 1))")" ] || exit 4 ;;
   rename:*)
     kind=rename; name="${cmd#rename:}"
     # One line, 1-80 chars, no control characters: it is typed after "/rename " into Claude's input box.
@@ -145,11 +147,11 @@ OSA
     # Cursor/VS Code: the spyglass-focus extension types into the terminal whose shell is claude's parent.
     local shell ts ok
     shell=$(ps -o ppid= -p "$cpid" | tr -d ' ')
-    ts=$(perl -MTime::HiRes=time -e 'printf "%.3f", time')
-    jq -n --argjson ts "$ts" --argjson pid "${shell:-0}" --arg text "$what" '{ts: $ts, shellPid: $pid, text: $text}' \
+    ts=$("$SG" json now)
+    "$SG" json make --json ts "$ts" --json shellPid "${shell:-0}" --str text "$what" \
       > "$home/send-request.json.tmp" && mv "$home/send-request.json.tmp" "$home/send-request.json"
     for _ in $(seq 1 30); do
-      ok=$(jq -r --argjson ts "$ts" 'select(.ts == $ts) | .ok' "$home/send-response.json" 2>/dev/null)
+      ok=""; "$SG" json eq "$home/send-response.json" .ts "$ts" && ok=$("$SG" json get "$home/send-response.json" .ok)
       [ "$ok" = "true" ] && return 0
       [ "$ok" = "false" ] && return 1
       sleep 0.1
@@ -167,14 +169,14 @@ if [ "$kind" = rename ]; then
   if [ -n "$transcript" ]; then
     ok=1
     for _ in $(seq 1 30); do
-      tail -n +"$((lines0 + 1))" "$transcript" 2>/dev/null | grep '"customTitle"' | jq -e --arg n "$name" 'select(.customTitle == $n)' >/dev/null 2>&1 && { ok=0; break; }
+      "$SG" json tail-has "$transcript" "$lines0" .customTitle "$("$SG" json make --str v "$name" | sed 's/^{"v"://; s/}$//')" && { ok=0; break; }
       sleep 0.1
     done
     [ $ok = 0 ] || exit 1
   fi
   # Show it in Spyglass now (no hook fires for /rename), then rename the terminal tab; a tab failure doesn't undo the rename.
   f="$home/sessions/$sid.json"
-  [ -f "$f" ] && jq --arg n "$name" '.title = $n | .titleSource = "custom"' "$f" > "$f.spyglass.tmp" && mv "$f.spyglass.tmp" "$f" || rm -f "$f.spyglass.tmp"
+  [ -f "$f" ] && "$SG" json set "$f" --str .title "$name" --str .titleSource custom
   deliver "tabname:$name"
   exit 0
 fi
@@ -183,8 +185,7 @@ if [ "$kind" = answer ]; then
   deliver "key:$n"; rc=$?
   if [ $rc = 0 ]; then
     f="$home/sessions/$sid.json"
-    jq --argjson at "$at" 'if .question.at == $at then del(.question) | .status = "working" | .activity = "Answered from Spyglass" else . end' \
-      "$f" > "$f.spyglass.tmp" && mv "$f.spyglass.tmp" "$f" || rm -f "$f.spyglass.tmp"
+    "$SG" json set "$f" --if .question.at "$at" --del .question --str .status working --str .activity "Answered from Spyglass"
   fi
   exit $rc
 fi
@@ -195,9 +196,7 @@ if [ "$kind" = key ]; then
     # Mark it answered: a declined prompt fires no hook, so the row would keep its buttons.
     f="$home/sessions/$sid.json"
     if [ "$cmd" = key:approve ]; then st=working; act="Approved from Spyglass"; else st=idle; act="Denied from Spyglass"; fi
-    jq --argjson at "$at" --arg st "$st" --arg act "$act" \
-      'if .permission.at == $at then del(.permission) | .status = $st | .activity = $act else . end' "$f" > "$f.spyglass.tmp" \
-      && mv "$f.spyglass.tmp" "$f" || rm -f "$f.spyglass.tmp"
+    "$SG" json set "$f" --if .permission.at "$at" --del .permission --str .status "$st" --str .activity "$act"
   fi
   exit $rc
 fi
@@ -205,13 +204,12 @@ fi
 # --- /model ---
 # /model also saves the pick as the default for new sessions; put the previous default back once it has applied.
 settings="$HOME/.claude/settings.json"
-before=$(jq -c '.model // null' "$settings" 2>/dev/null)
+before=$("$SG" json raw "$settings" .model)
 mtime=$(stat -f %m "$settings" 2>/dev/null)
 restore() {
   [ -f "$settings" ] && [ -n "$before" ] || return
   for _ in $(seq 1 30); do [ "$(stat -f %m "$settings" 2>/dev/null)" != "$mtime" ] && break; sleep 0.1; done
-  jq --argjson m "$before" 'if $m == null then del(.model) else .model = $m end' "$settings" > "$settings.spyglass.tmp" \
-    && mv "$settings.spyglass.tmp" "$settings" || rm -f "$settings.spyglass.tmp"
+  if [ "$before" = null ]; then "$SG" json set "$settings" --del .model; else "$SG" json set "$settings" --json .model "$before"; fi
 }
 # Applied = the transcript gained "Set model to ..." after we typed. Without a transcript, assume it applied.
 transcript=""

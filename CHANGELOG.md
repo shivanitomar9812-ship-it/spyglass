@@ -2,6 +2,10 @@
 
 All releases so far were made on 2026-11-22. Versions before 0.16.0 were released under the name Tower. Bugs that escaped to a release, and the check that now catches each, are in [HARNESS.md](HARNESS.md).
 
+## 0.17.0
+- No dependencies: `jq` is no longer needed. The hooks (`record`, `answer`, `stats`) run inside the Spyglass binary, and the scripts use its small JSON helper. Hooks are also faster (about 12 ms per event, from 22 ms).
+- The JSON helper refuses to change a settings file that isn't plain JSON, so a file with comments is never overwritten.
+
 ## 0.16.1
 - Names no longer start with Claude Code's status symbol ("✳ ") taken from editor tab titles.
 
