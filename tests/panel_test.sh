@@ -3,7 +3,7 @@
 source "$(dirname "$0")/lib.sh"
 BIN="${SPYGLASS_BIN:-$ROOT/plugin/bin/Spyglass}"
 # Never test a stale binary (it once read the real ~/.claude state because it predated a rename).
-if [ -z "${SPYGLASS_BIN:-}" ] && [ "$ROOT/plugin/app/Spyglass.swift" -nt "$BIN" ]; then
+if [ -z "${SPYGLASS_BIN:-}" ] && [ -n "$(find "$ROOT/plugin/app" -name '*.swift' -newer "$BIN")" ]; then
   bash "$ROOT/plugin/app/build.sh" "$BIN" >/dev/null 2>&1 || { echo "build failed"; exit 1; }
 fi
 export SPYGLASS_HOME="$TMP/spyglass"; mkdir -p "$SPYGLASS_HOME"/{sessions,stats,terminals,ended}
@@ -68,7 +68,7 @@ f="$SPYGLASS_HOME/sessions/asked.json"; jq '.status = "waiting" | .asked = {text
 eq "asked: hover says so" 1 "$(row asked .hover | grep -cF 'Claude asked "Shall I continue')"
 eq "question card" "Which fruit would you like?|Apple,Banana,Cherry" "$(row ask .question)"
 # Escaped bug (0.12.0): .help tooltips never show on Spyglass's non-activating panel; hover text must use .tip.
-eq "no .help tooltips in the panel" 0 "$(grep -c '\.help(' "$ROOT/plugin/app/Spyglass.swift")"
+eq "no .help tooltips in the panel" 0 "$(cat "$ROOT"/plugin/app/*.swift | grep -c '\.help(')"
 # Escaped bug (0.12.1 local): the hover card was measured without a width, wrapped word by word into a very tall
 # window, and showed far from the pointer. Cards must be card-sized.
 tip() { echo "$out" | jq -r --arg n "$1" "select(.tip == \$n) | $2"; }
@@ -203,6 +203,39 @@ session v-none '{"title":"None","titleSource":"ai","status":"done"}'
 outv=$(SPYGLASS_NO_REGISTRY=1 "$BIN" --selftest 2>/dev/null)
 eq "old hooks hinted, current not, none hinted" "true|false|true" "$(for id in v-old v-new v-none; do echo "$outv" | jq -r --arg i $id 'select(.id == $i) | .oldHooks'; done | paste -sd'|' -)"
 eq "hint explains the restart" 1 "$(echo "$outv" | jq -r 'select(.id == "v-old") | .hover' | grep -cF 'claude --resume')"
+export SPYGLASS_HOME="$TMP/tower"
+
+# Self-check: a session started after this Spyglass was installed, with no hook data after 30 s, gets a warning.
+# (Would have flagged the 0.17-0.20.3 bug within a minute.)
+export SPYGLASS_HOME="$TMP/selfcheck"; mkdir -p "$SPYGLASS_HOME/sessions"; echo "9.9.9" > "$SPYGLASS_HOME/version"
+touch -t "$(date -r $((now - 600)) +%Y%m%d%H%M.%S)" "$SPYGLASS_HOME/version"   # installed 10 minutes ago
+RD="$TMP/selfclaude"; mkdir -p "$RD/sessions"
+sleep 120 & r1=$!; sleep 120 & r2=$!
+echo "{\"pid\":$r1,\"sessionId\":\"after\",\"cwd\":\"/tmp/x\",\"startedAt\":$(( (now - 120) * 1000 )),\"updatedAt\":$(( now * 1000 )),\"status\":\"idle\"}" > "$RD/sessions/$r1.json"
+echo "{\"pid\":$r2,\"sessionId\":\"before\",\"cwd\":\"/tmp/x\",\"startedAt\":$(( (now - 3000) * 1000 )),\"updatedAt\":$(( now * 1000 )),\"status\":\"idle\"}" > "$RD/sessions/$r2.json"
+outs=$(SPYGLASS_CLAUDE_DIR="$RD" "$BIN" --selftest 2>/dev/null)
+eq "started after install, no hooks: warned" "true" "$(echo "$outs" | jq -r 'select(.id == "after") | .hooksMissing')"
+eq "started before install: not warned" "false" "$(echo "$outs" | jq -r 'select(.id == "before") | .hooksMissing')"
+kill $r1 $r2 2>/dev/null; wait $r1 $r2 2>/dev/null
+export SPYGLASS_HOME="$TMP/tower"
+
+# ⌃⌥J jumps to the session that has waited on you longest.
+export SPYGLASS_HOME="$TMP/longest"; mkdir -p "$SPYGLASS_HOME/sessions"
+session w-new '{"title":"Asked a minute ago","titleSource":"ai","status":"waiting","asked":{"text":"Q?","at":'$((now - 60))'}}'
+session w-old '{"title":"Waiting ten minutes","titleSource":"ai","status":"waiting","permission":{"tool":"Bash","detail":"x","at":'$((now - 600))',"key":"k"}}'
+session w-done '{"title":"Done","titleSource":"ai","status":"done"}'
+eq "⌃⌥J picks the longest wait" "w-old" "$(SPYGLASS_NO_REGISTRY=1 "$BIN" --selftest 2>/dev/null | jq -r 'select(.longestWaiting) | .longestWaiting')"
+export SPYGLASS_HOME="$TMP/tower"
+
+# Waiting on you: counted from when the prompt appeared; kept (waits.json) once answered.
+export SPYGLASS_HOME="$TMP/waits"; mkdir -p "$SPYGLASS_HOME/sessions"
+session wt '{"title":"Waits","titleSource":"ai","status":"waiting","permission":{"tool":"Bash","detail":"x","at":'$((now - 300))',"key":"k"}}'
+w1=$(SPYGLASS_NO_REGISTRY=1 "$BIN" --selftest 2>/dev/null | jq -r 'select(.waitedToday != null) | .waitedToday')
+eq "waiting 5 minutes counts ~5 minutes" "true" "$([ "$w1" -ge 290 ] && [ "$w1" -le 330 ] && echo true || echo "false ($w1)")"
+( sleep 0.5; f="$SPYGLASS_HOME/sessions/wt.json"; jq 'del(.permission) | .status = "working"' "$f" > "$f.t" && mv "$f.t" "$f" ) &
+flip=$!; SPYGLASS_NO_REGISTRY=1 "$BIN" --selftest --twice >/dev/null 2>&1; wait "$flip"
+t=$(jq -r '.total | floor' "$SPYGLASS_HOME/waits.json" 2>/dev/null)
+eq "answered: the wait is kept for today" "true" "$([ "${t:-0}" -ge 290 ] && [ "$t" -le 330 ] && echo true || echo "false ($t)")"
 export SPYGLASS_HOME="$TMP/tower"
 
 # Collapsed panel: a session that just finished (the chime) shows under the header, after the ones that need you.

@@ -27,7 +27,7 @@ macOS asks once for permission to let Spyglass control iTerm2 or Terminal (Apple
 
 ## The binary
 
-`plugin/bin/Spyglass` is a universal macOS binary built from `plugin/app/Spyglass.swift` by `scripts/release.sh`, after the full test suite passes. CI builds the same source on every push and attaches its build and SHA-256 to each GitHub release. To run only what you built yourself:
+`plugin/bin/Spyglass` is a universal macOS binary built from the Swift sources in `plugin/app/` by `scripts/release.sh`, after the full test suite passes. CI builds the same source on every push and attaches its build and SHA-256 to each GitHub release. To run only what you built yourself:
 
 ```bash
 plugin/app/build.sh plugin/bin/Spyglass --universal

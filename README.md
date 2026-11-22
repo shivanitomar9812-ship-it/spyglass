@@ -18,7 +18,10 @@ Running several Claude Code sessions at once? Spyglass keeps a small always-on-t
 - **Usage that fits your plan**: on a subscription, the header shows how much of the 5-hour and weekly limits is left and when they renew, and rows show tokens used. On an API key, rows show $. Past a limit, the header says extra usage is billed at API prices (if it's on) and rows show the $ added since. Behind a spend-capped Claude gateway, the header shows the spend
 - **Last line**: finished rows preview the last line of Claude's reply
 - **Restart hints**: ↻ on rows whose hooks are older than the installed Spyglass (`claude --resume` brings the newest features)
-- **Settings** (⚙): sounds, coming back, compact view, start at login
+- **Settings** (⚙): sounds, coming back, compact view, start at login, shortcuts
+- **Keyboard**: ⌃⌥S shows / hides Spyglass, ⌃⌥J jumps to the session that has waited on you longest
+- **Waiting on you**: "Needs you · 7m" on a row, and how long sessions waited on you today in the header
+- **Self-check**: a session started after installing Spyglass that isn't reporting through its hooks gets a ⚠︎, and `/spyglass:doctor` says what's wrong
 - **Hover for context**: how long it has been working or waiting, last prompt, folder and branch, model, context, tokens, and which tab it lives in
 - **Compact view**: one line per session, grouped by repo; rows that need you stay full size
 - **Collapsed, it still tells you what rang**: under the header, one line for each session that needs you or just finished. Click a "Needs you" line to open it in place and answer; click a "Done" line to jump
@@ -71,6 +74,7 @@ Optional:
 /spyglass:login on     # start the panel when you log in
 /spyglass:editor       # Cursor / VS Code: jump to, type into and reopen terminal tabs (reload the window once after)
 /spyglass:open         # reopen the panel if you quit it
+/spyglass:doctor       # check every link from this session to the panel, with fixes
 ```
 
 Then run once:
@@ -115,6 +119,7 @@ The editor extension is a thin loader for `~/.claude/spyglass/editor-core.js`, w
 | Cursor / VS Code: jump or typing does nothing, or "didn't answer" on hover | Run `/spyglass:editor`, then **Developer: Reload Window** once |
 | iTerm2 / Terminal: jump or typing does nothing | Allow Spyglass in System Settings → Privacy & Security → Automation |
 | A session is missing | Only sessions running on this Mac show up (not Claude desktop app or cloud sessions); sessions idle for 12 hours are summarised at the bottom |
+| Anything not working as described | Run `/spyglass:doctor` in the session: it checks the panel, that session's hooks, the statusline, the editor extension and leftovers, and says what to fix |
 | Something else | `~/.claude/spyglass/spyglass.log` has the panel's starts, exits and why it came back; open an issue with it and your Claude Code version |
 
 ## Configuration
@@ -144,6 +149,8 @@ plugin/app/build.sh plugin/bin/Spyglass --universal
 scripts/release.sh <version> "<subject>"         # tests → build → bump → push → plugin update → installed == running
 demo/storyboard.sh                               # re-render the README GIF from scripted fake sessions (needs ffmpeg)
 ```
+
+Code map: `plugin/app/` is the Swift app (`Store.swift` state and logic, `Views.swift` the panel, `CLI.swift` the hooks, JSON helper and doctor, `App.swift` window and menu bar, `TestMode.swift` `--selftest` / `--snapshot`); `plugin/scripts/` are the hooks and terminal plumbing; `plugin/editor-extension/` is the Cursor / VS Code side; `tests/` the regression checks.
 
 [SECURITY.md](SECURITY.md) says what Spyglass trusts and what it can do to a session. [HARNESS.md](HARNESS.md) explains the checks and lists every bug that escaped them; [CHANGELOG.md](CHANGELOG.md) has the release history.
 

@@ -2,6 +2,13 @@
 
 All releases so far were made on 2026-11-22. Versions before 0.16.0 were released under the name Tower. Bugs that escaped to a release, and the check that now catches each, are in [HARNESS.md](HARNESS.md).
 
+## 0.21.0
+- `/spyglass:doctor`: checks every link from a session to the panel (panel, that session's hooks, statusline, editor extension, leftovers from the old name) and says how to fix each.
+- Self-check: a session started after installing Spyglass that isn't reporting through its hooks within 30 s gets a ⚠︎ on its row (and a line in the log).
+- Keyboard: ⌃⌥S shows / hides Spyglass; ⌃⌥J jumps to the session that has waited on you longest (⚙ to turn off).
+- Waiting on you: rows show how long they've waited ("Needs you · 7m"); the header shows today's total.
+- The Swift app is split into files (model, store, views, hover cards, app, test modes, command line) for contributors.
+
 ## 0.20.4
 - Fixed: since 0.17.0, sessions started with the installed plugin lost their activity, prompts, questions and permission answers within a second. The hook took its own process (its path is under `~/.claude`) for Claude's, and the panel then dropped the row as ended. Spyglass now finds each session's process in Claude Code's own session registry.
 

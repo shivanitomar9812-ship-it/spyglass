@@ -15,6 +15,7 @@ scripts/release.sh 0.10.0 "Subject" ["Body"]   # tests -> universal build -> bum
 | `tests/send_test.sh` | allow-lists, stale-prompt guards, `/model` with and without Claude Code's "Switch model?" dialog, default model left alone, rename |
 | `tests/resume_test.sh` | bad ids and missing folders refused |
 | `tests/setup_test.sh` | `/spyglass:setup` in a fake home: wraps without editing, output unchanged, feeds Spyglass, idempotent, `off` restores exactly, manual setups left alone, editor settings with comments untouched |
+| `tests/doctor_test.sh` | `Spyglass doctor` in a fake home: finds its session through a stand-in `claude` process, each check's ✓ / ⚠︎, leftovers from editor lists (not lingering folders) |
 | `tests/answer_test.sh` | permission answers through the hook: fingerprint match, allow, deny (interrupt), wrong fingerprint ignored, exits when resolved elsewhere, no waiting without the panel |
 | `tests/core_test.js` | Cursor / VS Code side against a stand-in API: typing, keys, tab rename, tab names, hot reload, resume |
 | `tests/panel_test.sh` | `Spyglass --selftest` row logic on fixtures (names, states, tokens, plan limits, questions, compact layout, panel coming back, hover text; `--twice` reloads after fixtures change); renders `tests/out/panel.png` and `panel-compact.png` |
@@ -64,6 +65,8 @@ Claude Code 2.1.330, `PermissionRequest` hook (2026-11-22):
 | — | Terminal.app `do script` presses Enter after every key: a test drifted from a dialog into settings and vim (found live) | Terminal.app gets text commands only; keys route to "Answer in Terminal ↗"; never type exploratory commands into test sessions |
 | 0.13.0 | README claimed Claude desktop app sessions show in Spyglass; a live test showed they run in the cloud or a sandboxed VM that ignores local plugins (no hooks, no process, no transcript on the Mac) | support claims need a live session per host before they ship; untested hosts are marked untested |
 | 0.16.0 | Names showed Claude Code's status symbol ("✳ TTD channel…") once Cursor tabs show Claude's title | `panel_test.sh` fixture tab name starts with "✳ " |
+| 0.20.4 (doctor, caught) | Walking the process tree never found claude: `ps` pads its columns and a split limit ate the command name | parse `ps` by words; `doctor_test.sh` drives it through a stand-in `claude` process |
+| 0.20.4 (doctor, caught) | An uninstalled editor extension's folder lingers until the editor restarts, so "leftover" checks must ask the editor's own list | `doctor_test.sh` |
 | 0.17.0–0.20.3 | **Every new session lost its hook data**: run from the installed plugin (under `~/.claude`), the hook matched its own path as "claude", recorded its own pid, and the panel deleted the row once the hook exited (found from evidence: a 19:25 session with no row) | pid from Claude Code's session registry, exact-name fallback; `record_test.sh` runs the hook from a path under `.claude` |
 | 0.20.2 | The binary found home via the account (ignoring `$HOME`), the scripts via `$HOME`: a fresh-install check wrote a test row into the real `~/.claude/spyglass` (found verifying the public install) | binary uses `$HOME`; `record_test.sh` "hooks follow $HOME" |
 | 0.20.1 (main, ~1 min) | A hand commit shipped a native-only (arm64) binary | CI checks the committed binary is universal (`lipo`) |
@@ -91,5 +94,5 @@ Covered by fixture tests only; each needs one live session before the README can
 - JetBrains IDEs (terminal and plugin): detection, jump
 - cmux: jump to a real cmux session (control refusal is confirmed)
 - Ghostty, Warp, kitty and other terminals: detection, jump
-- The panel coming back on its own when a session needs you (logic tested; the window appearing was not watched)
+- Global shortcuts ⌃⌥S / ⌃⌥J (the selection ⌃⌥J makes is tested; the key press is not)
 - Tests must not depend on what's installed on the machine running them; CI (a clean Mac) is the check.
