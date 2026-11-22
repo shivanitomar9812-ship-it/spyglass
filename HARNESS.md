@@ -16,6 +16,7 @@ scripts/release.sh 0.10.0 "Subject" ["Body"]   # tests -> universal build -> bum
 | `tests/resume_test.sh` | bad ids and missing folders refused |
 | `tests/setup_test.sh` | `/spyglass:setup` in a fake home: wraps without editing, output unchanged, feeds Spyglass, idempotent, `off` restores exactly, manual setups left alone, editor settings with comments untouched |
 | `tests/doctor_test.sh` | `Spyglass doctor` in a fake home: finds its session through a stand-in `claude` process, each check's ✓ / ⚠︎, leftovers from editor lists (not lingering folders) |
+| `tests/uninstall_test.sh` | `/spyglass:uninstall` in a fake home: the list changes nothing; `--yes` restores the statusline (wrapped or hand-added), removes the login item, resets only the tab-title value Spyglass set, removes state |
 | `tests/answer_test.sh` | permission answers through the hook: fingerprint match, allow, deny (interrupt), wrong fingerprint ignored, exits when resolved elsewhere, no waiting without the panel |
 | `tests/core_test.js` | Cursor / VS Code side against a stand-in API: typing, keys, tab rename, tab names, hot reload, resume |
 | `tests/panel_test.sh` | `Spyglass --selftest` row logic on fixtures (names, states, tokens, plan limits, questions, compact layout, panel coming back, hover text; `--twice` reloads after fixtures change); renders `tests/out/panel.png` and `panel-compact.png` |
@@ -32,6 +33,8 @@ scripts/release.sh 0.10.0 "Subject" ["Body"]   # tests -> universal build -> bum
 - Build JSON fixtures with `jq -n --arg` (tests may use jq; the plugin may not), never by nesting quotes in shell.
 - Capture `$?` on its own line, right after the command: not inside a string with other `$(...)`, not after a pipe.
 - The README GIF is rendered from fake sessions (`demo/storyboard.sh`); look at its frames as a contact sheet before shipping, it is a UI review too.
+- Power: compare old and new binaries side by side under identical fake sessions (a copy under another name, its own preferences), not the live panel while you're working in another session.
+- After verifying against a new Claude Code version (live checks of model switch, Allow / Deny, replies), bump `plugin/compat.json`.
 - Live Claude Code checks run in a throwaway session in its **own** window (iTerm2 or Terminal), addressed by tty only, driven only through `send.sh` — never by typing commands by hand.
 - cmux refuses control from processes outside cmux (no socket password set); test cmux only by its jump.
 

@@ -16,10 +16,34 @@ final class Store: ObservableObject {
         return URL(fileURLWithPath: Store.userHome).appendingPathComponent(".claude/spyglass")   // $HOME, like the scripts
     }()
     private var timer: Timer?
+    private var watcher: Watcher?
+    private var tickInterval: Double = 0
 
+    /// Reloads when Spyglass's or Claude Code's session files change, plus a slow tick for clocks and process liveness:
+    /// 2 s while a session is working, 10 s when all is quiet. (It used to re-read everything every second.)
     init() {
         reload()
-        timer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] _ in self?.reload() }
+        guard !Store.snapshotMode else { return }   // test modes reload explicitly
+        watcher = Watcher(paths: [Store.home.path, Store.claudeDirURL.appendingPathComponent("sessions").path],
+                          ignore: Store.ignoreChange) { [weak self] in self?.reload() }
+        scheduleTick()
+    }
+
+    /// Changes that don't need a reload: what the panel writes itself, the editor's tab-name heartbeat, request plumbing.
+    static func ignoreChange(_ path: String) -> Bool {
+        let name = (path as NSString).lastPathComponent
+        if name.hasSuffix(".tmp") || path.contains("/claims/") || path.contains("/terminals/") { return true }
+        return ["tokens.json", "waits.json", "extra.json", "spyglass.log", "send-request.json", "send-response.json",
+                "focus-request.json", "focus-response.json", "resume-request.json", "resume-response.json"].contains(name)
+    }
+
+    private func scheduleTick() {
+        let want: Double = sessions.contains { $0.state == "working" } ? 2 : 10
+        guard want != tickInterval else { return }
+        tickInterval = want
+        timer?.invalidate()
+        timer = Timer.scheduledTimer(withTimeInterval: want, repeats: true) { [weak self] _ in self?.reload() }
+        timer?.tolerance = want / 4   // let macOS batch the wake-up with others
     }
 
     @Published var olderIdle = 0
@@ -74,8 +98,7 @@ final class Store: ObservableObject {
         let files = (try? FileManager.default.contentsOfDirectory(at: dir, includingPropertiesForKeys: nil)) ?? []
         var out: [Session] = []
         for url in files where url.pathExtension == "json" {
-            guard let data = try? Data(contentsOf: url),
-                  let o = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+            guard let o = cachedJSON(url),
                   let sid = o["sessionId"] as? String,
                   let pidN = o["pid"] as? NSNumber else { continue }
             let pid = pidN.int32Value
@@ -140,8 +163,7 @@ final class Store: ObservableObject {
         var names: [Int32: String] = [:]
         var fresh = false
         for url in (try? fm.contentsOfDirectory(at: dir, includingPropertiesForKeys: nil)) ?? [] where url.pathExtension == "json" {
-            guard let data = try? Data(contentsOf: url),
-                  let o = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+            guard let o = cachedJSON(url),
                   let ts = (o["ts"] as? NSNumber)?.doubleValue else { continue }
             if now - ts > 3600 { try? fm.removeItem(at: url); continue }   // window closed long ago
             guard now - ts <= 20 else { continue }
@@ -183,8 +205,43 @@ final class Store: ObservableObject {
         return o[key] as? String
     }
 
+    // MARK: Parse only what changed
+
+    /// Parsed files, re-read only when their modification time or size changes (most files don't, most reloads).
+    private var parsed: [String: (mtime: Date, size: Int, obj: Any)] = [:]
+    private var seenPaths: Set<String> = []
+    private func stamp(_ url: URL) -> (Date, Int)? {
+        guard let a = try? FileManager.default.attributesOfItem(atPath: url.path),
+              let m = a[.modificationDate] as? Date, let z = (a[.size] as? NSNumber)?.intValue else { return nil }
+        return (m, z)
+    }
+    func cachedJSON(_ url: URL) -> [String: Any]? {
+        seenPaths.insert(url.path)
+        guard let (m, z) = stamp(url) else { return nil }
+        if let c = parsed[url.path], c.mtime == m, c.size == z { return c.obj as? [String: Any] }
+        guard let d = try? Data(contentsOf: url), let o = try? JSONSerialization.jsonObject(with: d) as? [String: Any] else { return nil }
+        parsed[url.path] = (m, z, o)
+        return o
+    }
+    func cachedSession(_ url: URL) -> Session? {
+        seenPaths.insert(url.path)
+        guard let (m, z) = stamp(url) else { return nil }
+        if let c = parsed[url.path], c.mtime == m, c.size == z { return c.obj as? Session }
+        guard let d = try? Data(contentsOf: url), let s = try? JSONDecoder().decode(Session.self, from: d) else { return nil }
+        parsed[url.path] = (m, z, s)
+        return s
+    }
+    /// Forget cache entries for files not seen in the last reload.
+    private func pruneParsed() {
+        if parsed.count > seenPaths.count { parsed = parsed.filter { seenPaths.contains($0.key) } }
+        seenPaths.removeAll(keepingCapacity: true)
+    }
+
+    private var transcriptMisses: [String: Double] = [:]   // no transcript found: look again after a minute
     private func transcriptURL(_ sid: String, cwd: String?) -> URL? {
         if let u = transcriptPaths[sid] { return u }
+        let now = Date().timeIntervalSince1970
+        if let t = transcriptMisses[sid], now - t < 60 { return nil }
         let projects = claudeDir.appendingPathComponent("projects")
         var candidates: [URL] = []
         if let cwd {
@@ -197,6 +254,7 @@ final class Store: ObservableObject {
             let c = d.appendingPathComponent("\(sid).jsonl")
             if FileManager.default.fileExists(atPath: c.path) { transcriptPaths[sid] = c; return c }
         }
+        transcriptMisses[sid] = now
         return nil
     }
 
@@ -208,8 +266,7 @@ final class Store: ObservableObject {
         // Hook-recorded sessions: rich state (activity, progress, terminal location).
         var hooked: [String: Session] = [:]
         for url in files where url.pathExtension == "json" {
-            guard let data = try? Data(contentsOf: url),
-                  let s = try? JSONDecoder().decode(Session.self, from: data) else { continue }
+            guard let s = cachedSession(url) else { continue }
             if !alive(s.pid) { saveEnded(s); try? fm.removeItem(at: url); continue }   // ended without SessionEnd
             var h = s
             // Claude Code's one-minute idle reminder isn't a question (older hooks recorded it as "waiting").
@@ -252,8 +309,7 @@ final class Store: ObservableObject {
         for url in (try? fm.contentsOfDirectory(at: statsDir, includingPropertiesForKeys: nil)) ?? []
         where url.pathExtension == "json" {
             let sid = url.deletingPathExtension().lastPathComponent
-            guard let data = try? Data(contentsOf: url),
-                  let o = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { continue }
+            guard let o = cachedJSON(url) else { continue }
             guard var s = merged[sid] else {
                 if now - ((o["updated"] as? NSNumber)?.doubleValue ?? 0) > Store.recentWindow { try? fm.removeItem(at: url) }
                 continue
@@ -347,6 +403,8 @@ final class Store: ObservableObject {
         if pruned != justDone { justDone = pruned }
         checkContext(out)
         trackWaits(out, now: now)
+        if watcher != nil { scheduleTick() }
+        pruneParsed()
         if out != sessions { sessions = out }
         resolveSwitches(out, now: now)
         resolveReplies(out, now: now)
@@ -479,9 +537,15 @@ final class Store: ObservableObject {
         args += [s.term ?? "", s.tty ?? "", s.bundle ?? ""]
         args += [s.cmuxWorkspace ?? "", s.cmuxSurface ?? "", pid, command]
         p.arguments = args + extra
-        p.terminationHandler = { proc in
+        p.terminationHandler = { [weak self] proc in
             let code = proc.terminationStatus
-            if code != 0 { DispatchQueue.main.async { onFail(code) } }
+            if code != 0 {
+                DispatchQueue.main.async {
+                    // In the log for /spyglass:doctor: a run of failures often means Claude Code changed a dialog.
+                    self?.onLog?("action failed: \(command.prefix(40)) (exit \(code)) in \(s.displayTitle) [\(s.term ?? "-")]")
+                    onFail(code)
+                }
+            }
         }
         do { try p.run() } catch { onFail(1) }
     }
@@ -955,7 +1019,7 @@ final class Store: ObservableObject {
         var out: [Session] = []
         for url in (try? fm.contentsOfDirectory(at: endedDir, includingPropertiesForKeys: nil)) ?? []
         where url.pathExtension == "json" {
-            guard let data = try? Data(contentsOf: url), let e = try? JSONDecoder().decode(Session.self, from: data) else {
+            guard let e = cachedSession(url) else {
                 try? fm.removeItem(at: url); continue
             }
             // Resumed (same id is live again) or too old: drop it.

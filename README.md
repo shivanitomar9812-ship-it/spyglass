@@ -75,6 +75,7 @@ Optional:
 /spyglass:editor       # Cursor / VS Code: jump to, type into and reopen terminal tabs (reload the window once after)
 /spyglass:open         # reopen the panel if you quit it
 /spyglass:doctor       # check every link from this session to the panel, with fixes
+/spyglass:uninstall    # undo everything Spyglass changed on this Mac (lists it first)
 ```
 
 Then run once:
@@ -86,7 +87,7 @@ Then run once:
 
 `/spyglass:setup` feeds Spyglass the data Claude Code only gives to the statusline. It wraps whatever statusline you have, so it looks exactly as before (or adds a short one if you have none), backs up `settings.json` first, and `/spyglass:setup off` puts your original back.
 
-**Requirements:** macOS 13+. Nothing else to install: a prebuilt universal binary is included (if it can't run, Spyglass builds itself with the Xcode Command Line Tools).
+**Requirements:** macOS 13+, Claude Code (verified with 2.1.330; `/spyglass:doctor` tells you if yours is newer). Nothing else to install: a prebuilt universal binary is included (if it can't run, Spyglass builds itself with the Xcode Command Line Tools).
 
 ## How it works
 
@@ -133,12 +134,11 @@ The editor extension is a thin loader for `~/.claude/spyglass/editor-core.js`, w
 ## Uninstall
 
 ```
-/spyglass:setup off
-/spyglass:login off
+/spyglass:uninstall
 /plugin uninstall spyglass@spyglass
 ```
 
-Run `/spyglass:setup off` first to restore your statusline. Then remove `~/.claude/spyglass`, and in Cursor / VS Code uninstall the `local.spyglass-focus` extension.
+`/spyglass:uninstall` lists everything Spyglass changed on this Mac (your statusline, the login item, the editor extension and tab-title setting, its state) and undoes it after you confirm. Then remove the plugin itself:
 
 ## Development
 

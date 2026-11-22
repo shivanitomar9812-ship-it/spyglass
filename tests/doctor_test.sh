@@ -19,6 +19,13 @@ v=$(jq -r .version "$ROOT/plugin/.claude-plugin/plugin.json")
 echo "{\"id\":\"s1\",\"hooks\":\"$v\"}" > "$H/.claude/spyglass/sessions/s1.json"
 out=$(doc --session s1); eq "current hooks: ✓" 1 "$(grep -c '✓ This session reports' <<<"$out")"
 
+# Claude Code newer than the version Spyglass was verified against: said, as information.
+echo '{"pid":1,"sessionId":"s1","version":"9.0.0"}' > "$H/.claude/sessions/1.json"
+out=$(doc --session s1); eq "newer Claude Code noted" 1 "$(grep -c 'newer than the' <<<"$out")"
+# Actions that failed in the last day, from the panel's log.
+echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) action failed: /model sonnet (exit 1) in Demo [iTerm.app]" > "$H/.claude/spyglass/spyglass.log"
+out=$(doc --session s1); eq "recent failed action reported" 1 "$(grep -c '1 action failed in the last day' <<<"$out")"
+
 # Panel not installed; statusline not feeding.
 eq "panel missing reported" 1 "$(grep -c "panel isn't installed" <<<"$out")"
 eq "statusline not feeding reported" 1 "$(grep -c '/spyglass:setup' <<<"$out")"

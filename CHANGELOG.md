@@ -2,6 +2,11 @@
 
 All releases so far were made on 2026-11-22. Versions before 0.16.0 were released under the name Tower. Bugs that escaped to a release, and the check that now catches each, are in [HARNESS.md](HARNESS.md).
 
+## 0.22.0
+- Uses less power: reacts to file changes instead of re-reading everything every second, parses only files that changed, and slows its clock when nothing is working. Idle CPU measured 1.00% → 0.27% under identical conditions.
+- `/spyglass:uninstall`: lists everything Spyglass changed on this Mac, then undoes it after you confirm (statusline, login item, editor extension and tab-title setting, state).
+- Claude Code version awareness: `/spyglass:doctor` shows the Claude Code version Spyglass was verified against (`plugin/compat.json`) and recent failed actions from the log.
+
 ## 0.21.0
 - `/spyglass:doctor`: checks every link from a session to the panel (panel, that session's hooks, statusline, editor extension, leftovers from the old name) and says how to fix each.
 - Self-check: a session started after installing Spyglass that isn't reporting through its hooks within 30 s gets a ⚠︎ on its row (and a line in the log).

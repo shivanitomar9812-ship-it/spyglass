@@ -221,6 +221,31 @@ enum CLI {
             print("· Couldn't tell which session this is (run /spyglass:doctor inside a Claude session)")
         }
 
+        // 2b. Claude Code version vs the one Spyglass was verified against
+        let tested = JSON.get(JSON.load(root + "/compat.json"), ".claudeCode") as? String
+        let claudeVersion: String? = {
+            guard let sid else { return nil }
+            let reg = Store.userHome + "/.claude/sessions"
+            return ((try? fm.contentsOfDirectory(atPath: reg)) ?? []).lazy
+                .compactMap { JSON.load(reg + "/" + $0) as? [String: Any] }
+                .first { ($0["sessionId"] as? String) == sid }.flatMap { $0["version"] as? String }
+        }()
+        if let t = tested, let r = claudeVersion {
+            if Store.older(t, than: r) {
+                print("· Claude Code \(r) is newer than the \(t) Spyglass was verified against: if an action (model switch, reply, Allow / Deny) fails, that's the likely cause; please open an issue")
+            } else { ok("Claude Code \(r) (Spyglass verified against \(t))") }
+        }
+
+        // 2c. Actions that failed in the last day (from the panel's log)
+        let dayAgo = ISO8601DateFormatter().string(from: Date().addingTimeInterval(-86400))
+        let failures = ((try? String(contentsOfFile: home + "/spyglass.log", encoding: .utf8)) ?? "")
+            .split(separator: "\n").filter { $0.contains("action failed:") && String($0.prefix(20)) >= String(dayAgo.prefix(20)) }
+        if failures.isEmpty { ok("No failed actions in the last day") }
+        else {
+            warn("\(failures.count) action\(failures.count == 1 ? "" : "s") failed in the last day, latest: \(failures.last!.split(separator: " ", maxSplits: 1).last ?? "")",
+                 "Hover the ⚠︎ on the row for why; if it keeps happening after a Claude Code update, open an issue with ~/.claude/spyglass/spyglass.log")
+        }
+
         // 3. Statusline (model, context, plan usage)
         if Store.setupState().stats { ok("Statusline feeds Spyglass (model, context, plan usage)") }
         else { warn("Spyglass gets no model, context or plan usage", "Run /spyglass:setup, then send any message") }

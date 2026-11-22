@@ -17,6 +17,7 @@ func colorFor(_ id: String) -> Color {
 }
 
 struct Buddy: View {
+    static let blinkClock = Timer.publish(every: 3.2, tolerance: 0.5, on: .main, in: .common).autoconnect()
     let color: Color
     let state: String
     @State private var blink = false
@@ -33,12 +34,12 @@ struct Buddy: View {
             }
         }
         .frame(width: 44, height: 46)
-        .onAppear {
-            Timer.scheduledTimer(withTimeInterval: 3.2, repeats: true) { _ in
-                withAnimation(.easeInOut(duration: 0.12)) { blink = true }
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
-                    withAnimation(.easeInOut(duration: 0.12)) { blink = false }
-                }
+        // One shared blink clock (each face used to start its own timer that never stopped); only working faces blink.
+        .onReceive(Buddy.blinkClock) { _ in
+            guard state == "working" else { return }
+            withAnimation(.easeInOut(duration: 0.12)) { blink = true }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
+                withAnimation(.easeInOut(duration: 0.12)) { blink = false }
             }
         }
     }

@@ -1,5 +1,6 @@
 // Spyglass: The floating panel window, menu bar item and app delegate.
 import AppKit
+import Combine
 import SwiftUI
 
 // MARK: - Window
@@ -14,6 +15,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     var statusItem: NSStatusItem!
     var quitReason = "unknown"
     var previousApp: NSRunningApplication?
+    var fit: (() -> Void)?
+    var changes: AnyCancellable?
     var sigterm: DispatchSourceSignal?
 
     func log(_ msg: String) {
@@ -112,8 +115,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         panel.setFrameAutosaveName("SpyglassPanel")
         if !UserDefaults.standard.bool(forKey: "panelHidden") { panel.orderFrontRegardless() }
 
-        // Keep the window sized to its content, anchored at the top edge.
-        Timer.scheduledTimer(withTimeInterval: 0.25, repeats: true) { [weak self] _ in
+        // Keep the window sized to its content, anchored at the top edge: when the content changes (and on a slow
+        // fallback tick for size changes that come from inside a view), not four times a second.
+        fit = { [weak self] in
             guard let self else { return }
             let waiting = self.store.sessions.filter { $0.state == "waiting" }.count
             let title = waiting > 0 ? " \(waiting)" : ""
@@ -127,5 +131,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                 self.panel.setFrame(f, display: true)
             }
         }
+        changes = store.objectWillChange.sink { [weak self] _ in
+            DispatchQueue.main.async { self?.fit?() }   // after the change has been applied
+        }
+        let fallback = Timer.scheduledTimer(withTimeInterval: 2, repeats: true) { [weak self] _ in self?.fit?() }
+        fallback.tolerance = 0.5
     }
 }
