@@ -27,6 +27,7 @@ scripts/release.sh 0.10.0 "Subject" ["Body"]   # tests -> universal build -> bum
 - Don't use `.help` (macOS hides tooltips of inactive apps); use `.tip`.
 - UI changes are not shipped without looking at `tests/out/panel.png`. `--state` sets click-only UI state (e.g. a model confirm card).
 - Background jobs in tests: `wait <pid>`, never a bare `wait` (fixture processes sleep for minutes).
+- Build JSON fixtures with `jq -n --arg` (tests may use jq; the plugin may not), never by nesting quotes in shell.
 - Capture `$?` on its own line, right after the command: not inside a string with other `$(...)`, not after a pipe.
 - Live Claude Code checks run in a throwaway session in its **own** window (iTerm2 or Terminal), addressed by tty only, driven only through `send.sh` — never by typing commands by hand.
 - cmux refuses control from processes outside cmux (no socket password set); test cmux only by its jump.
@@ -61,6 +62,7 @@ Claude Code 2.1.330, `PermissionRequest` hook (2026-11-22):
 | — | Terminal.app `do script` presses Enter after every key: a test drifted from a dialog into settings and vim (found live) | Terminal.app gets text commands only; keys route to "Answer in Terminal ↗"; never type exploratory commands into test sessions |
 | 0.13.0 | README claimed Claude desktop app sessions show in Spyglass; a live test showed they run in the cloud or a sandboxed VM that ignores local plugins (no hooks, no process, no transcript on the Mac) | support claims need a live session per host before they ship; untested hosts are marked untested |
 | 0.16.0 | Names showed Claude Code's status symbol ("✳ TTD channel…") once Cursor tabs show Claude's title | `panel_test.sh` fixture tab name starts with "✳ " |
+| 0.19.0 | A plain-text question didn't pop up in sessions running hooks older than 0.18 (every long-running session; reported by the user) | the panel also reads the question from the transcript; `panel_test.sh` old-hooks checks |
 | 0.18.0 | Collapsed, the "done" chime played but nothing showed which session rang (reported by the user) | collapsed header lists sessions that need you and ones that just finished; `panel_test.sh` peek check |
 | 0.17.0 | A question asked in plain text at the end of a turn showed as Done (no hook flags it; reported by the user) | Stop hook reads `last_assistant_message`; `record_test.sh` covers question / plain / code-block endings |
 | — | Snapshots used the user's saved panel settings (collapsed) | test mode pins collapsed, muted, compact and welcome; `--state` sets them |

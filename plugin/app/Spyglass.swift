@@ -501,6 +501,16 @@ final class Store: ObservableObject {
         }
         for (id, var s) in merged { s.tokens = tokenCounter.totals(id); merged[id] = s }
 
+        // A finished turn that ended by asking you something waits on you. Hooks since 0.18 record it; the panel also
+        // reads it from the transcript, so sessions running older hooks (or none) show it too.
+        for (id, var s) in merged where s.asked == nil && s.permission == nil && s.question == nil
+            && (s.state == "done" || s.state == "idle") {
+            if let q = endingQuestion(s) {
+                s.asked = q; s.status = "waiting"; s.activity = "Asked you: " + CLI.cut(q.text, 70)
+                merged[id] = s
+            }
+        }
+
         // Sessions that vanished since the last reload (terminal closed, crash) are kept for Resume.
         for (id, s) in lastLive where merged[id] == nil { saveEnded(s) }
         lastLive = merged
@@ -721,6 +731,38 @@ final class Store: ObservableObject {
             if ((try? fm.contentsOfDirectory(atPath: home + "/" + dir)) ?? []).contains(where: { $0.hasPrefix("local.spyglass-focus-") }) { ext = true }
         }
         return SetupState(stats: stats, editors: editors, editorExtension: ext)
+    }
+
+    /// The question the session's last reply ends with, read from the end of its transcript (cached by file size).
+    private var endings: [String: (size: UInt64, asked: Asked?)] = [:]
+    func endingQuestion(_ s: Session) -> Asked? {
+        guard let url = transcriptURL(s.id, cwd: s.cwd),
+              let attrs = try? FileManager.default.attributesOfItem(atPath: url.path),
+              let size = (attrs[.size] as? NSNumber)?.uint64Value else { return nil }
+        if let c = endings[s.id], c.size == size { return c.asked }
+        var found: Asked? = nil
+        if let fh = try? FileHandle(forReadingFrom: url) {
+            defer { try? fh.close() }
+            try? fh.seek(toOffset: size > 262_144 ? size - 262_144 : 0)
+            let data = (try? fh.readToEnd()) ?? Data()
+            // The last line that is the assistant speaking; the turn's final words are its last text block.
+            for line in data.split(separator: 0x0A).reversed() {
+                guard let o = try? JSONSerialization.jsonObject(with: line) as? [String: Any] else { continue }
+                let type = o["type"] as? String
+                if type == "user", let m = o["message"] as? [String: Any], m["content"] is String { break }   // you replied
+                guard type == "assistant", let m = o["message"] as? [String: Any],
+                      let blocks = m["content"] as? [[String: Any]] else { continue }
+                if blocks.contains(where: { ($0["type"] as? String) == "tool_use" }) { break }   // still working, not a final reply
+                guard let text = blocks.last(where: { ($0["type"] as? String) == "text" })?["text"] as? String else { continue }
+                if let q = CLI.endingQuestion(text) {
+                    let at = ((attrs[.modificationDate] as? Date) ?? Date()).timeIntervalSince1970
+                    found = Asked(text: q, at: at)
+                }
+                break
+            }
+        }
+        endings[s.id] = (size, found)
+        return found
     }
 
     // MARK: Hover text

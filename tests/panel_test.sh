@@ -166,6 +166,23 @@ eq "old-hook Terminal prompt: jump only" "false" "$(SPYGLASS_NO_REGISTRY=1 "$BIN
 SPYGLASS_NO_REGISTRY=1 "$BIN" --snapshot "$ROOT/tests/out/panel-hosts.png" 2>/dev/null
 export SPYGLASS_HOME="$TMP/spyglass"
 
+# Old hooks don't record a plain-text question; the panel reads it from the transcript. Escaped (0.19.0): a question at
+# the end of a turn didn't pop up in sessions started before 0.18.
+export SPYGLASS_HOME="$TMP/oldhooks"; mkdir -p "$SPYGLASS_HOME/sessions"
+T="$SPYGLASS_CLAUDE_DIR/projects/-tmp-repo"
+say() { jq -nc --arg t "$1" '{type: "assistant", message: {content: [{type: "text", text: $t}]}}'; }
+session o-ask  '{"title":"Old hooks, asks","titleSource":"ai","status":"done"}'
+session o-tool '{"title":"Old hooks, tool last","titleSource":"ai","status":"done"}'
+session o-repl '{"title":"Old hooks, you replied","titleSource":"ai","status":"done"}'
+{ say "Built it."; say $'All tests pass.\n\nShould I release it as 0.19.0?'; } > "$T/o-ask.jsonl"
+{ say "Should I release?"; echo '{"type":"assistant","message":{"content":[{"type":"tool_use","name":"Bash"}]}}'; } > "$T/o-tool.jsonl"
+{ say "Should I release?"; echo '{"type":"user","message":{"content":"yes"}}'; } > "$T/o-repl.jsonl"
+outo=$(SPYGLASS_NO_REGISTRY=1 "$BIN" --selftest 2>/dev/null)
+eq "old hooks: a question at the end shows as waiting" "waiting|Should I release it as 0.19.0?" "$(echo "$outo" | jq -r 'select(.id == "o-ask") | "\(.state)|\(.asked)"')"
+eq "old hooks: tool call last, not a question" "done" "$(echo "$outo" | jq -r 'select(.id == "o-tool") | .state')"
+eq "old hooks: you already replied" "done" "$(echo "$outo" | jq -r 'select(.id == "o-repl") | .state')"
+export SPYGLASS_HOME="$TMP/tower"
+
 # Collapsed panel: a session that just finished (the chime) shows under the header, after the ones that need you.
 # Escaped (0.18.0): collapsed, the chime played but nothing showed which session it was.
 export SPYGLASS_HOME="$TMP/peek"; mkdir -p "$SPYGLASS_HOME/sessions"

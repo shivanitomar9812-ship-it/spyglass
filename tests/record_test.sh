@@ -40,7 +40,7 @@ CLAUDE_CODE_ENTRYPOINT=claude-vscode hook '{"session_id":"v","hook_event_name":"
 eq "entrypoint recorded" "claude-vscode" "$(field v .entrypoint)"
 
 # A turn that ends by asking you something (plain text, no question tool) waits on you. Escaped (0.17.0): it showed as Done.
-stop() { hook "{\"session_id\":\"t\",\"hook_event_name\":\"Stop\",\"last_assistant_message\":$(printf '%s' "$1" | "$ROOT/plugin/bin/Spyglass" json make --str m "$(cat)" | sed 's/^{"m"://; s/}$//')}"; }
+stop() { hook "$(jq -nc --arg m "$1" '{session_id: "t", hook_event_name: "Stop", last_assistant_message: $m}')"; }
 stop $'Built it.\n\nShall I continue with the **welcome card**?'
 eq "ends with a question: waiting" "waiting|Shall I continue with the welcome card?" "$(field t '"\(.status)|\(.asked.text)"')"
 hook '{"session_id":"t","hook_event_name":"Notification","notification_type":"idle_prompt","message":"Claude is waiting for your input"}'

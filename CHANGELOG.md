@@ -2,6 +2,9 @@
 
 All releases so far were made on 2026-11-22. Versions before 0.16.0 were released under the name Tower. Bugs that escaped to a release, and the check that now catches each, are in [HARNESS.md](HARNESS.md).
 
+## 0.19.1
+- A question at the end of a turn now pops up in every session, including ones running older hooks: the panel also reads it from the transcript.
+
 ## 0.19.0
 - Collapsed, the panel lists the sessions that need you and the ones that just finished (the chime), one line each with why ("Needs you", "Done · 2m"); click to jump. A finished session drops off once you jump to it, give it a new prompt, or after 15 minutes.
 
