@@ -2,6 +2,10 @@
 
 All releases so far were made on 2026-11-22. Versions before 0.16.0 were released under the name Tower. Bugs that escaped to a release, and the check that now catches each, are in [HARNESS.md](HARNESS.md).
 
+## 0.20.2
+- Collapsed, click a **Needs you** line to open that session's full row in place (the question with Yes / No / Reply…, or the command with Allow once / Deny) and answer without expanding the panel; ⌃ folds it back, and it folds by itself once answered. ↗ still jumps.
+- Rows name known apps (Cursor, VS Code, iTerm2…) even where macOS can't look them up.
+
 ## 0.20.1
 - Yes / No now appear when the question follows a statement ("The docs are ready. Should I also…?"); it used to judge the first word only.
 - `SECURITY.md`: what Spyglass trusts, what it can type, and the trust boundary. `SPYGLASS_BUILD_FROM_SOURCE=1` builds the binary on your Mac.

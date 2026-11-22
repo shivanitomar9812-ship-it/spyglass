@@ -215,6 +215,11 @@ session p-old  '{"title":"Done long ago","titleSource":"ai","status":"done"}'
 flip=$!
 outp=$(SPYGLASS_NO_REGISTRY=1 "$BIN" --selftest --twice --state '{"collapsed":"true"}' --snapshot "$ROOT/tests/out/panel-collapsed.png" 2>/dev/null); wait "$flip"
 eq "collapsed: needs-you first, then what just finished; older done rows stay hidden" '["p-wait","p-work"]' "$(echo "$outp" | jq -c 'select(.peek) | .peek')"
+# Clicking a collapsed "Needs you" line opens its full row in place (answer without expanding everything);
+# it folds away once the session no longer needs you. Asked for by the user.
+outo2=$(SPYGLASS_NO_REGISTRY=1 "$BIN" --selftest --state '{"collapsed":"true","peekOpen:p-wait":"true","peekOpen:p-old":"true"}' \
+  --snapshot "$ROOT/tests/out/panel-collapsed-open.png" 2>/dev/null)
+eq "opened Needs-you line stays open; one that doesn't need you folds" '["p-wait"]' "$(echo "$outo2" | jq -c 'select(.peekOpen) | .peekOpen')"
 export SPYGLASS_HOME="$TMP/tower"
 
 # Settings: with "come back when a session needs you" off, a new waiting session doesn't bring the panel back.

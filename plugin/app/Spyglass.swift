@@ -544,6 +544,9 @@ final class Store: ObservableObject {
             if let first = out.first(where: { $0.state == "waiting" && prev[$0.id] != "waiting" }) { wake(first) }
         }
         lastState = Dictionary(uniqueKeysWithValues: out.map { ($0.id, $0.state) })
+        // An opened "Needs you" line folds away once that session no longer needs you.
+        let stillWaiting = Set(out.filter { $0.state == "waiting" }.map(\.id))
+        if !peekOpen.isSubset(of: stillWaiting) { peekOpen.formIntersection(stillWaiting) }
         // Forget a finished session once it moves on (new prompt), disappears, or after 15 minutes.
         let pruned = justDone.filter { id, at in now - at < Store.justDoneFor && out.contains { $0.id == id && $0.state == "done" } }
         if pruned != justDone { justDone = pruned }
@@ -1155,6 +1158,10 @@ final class Store: ObservableObject {
     @Published var justDone: [String: Double] = [:]
     static let justDoneFor: Double = 15 * 60
 
+    /// Collapsed view: "Needs you" lines opened in place to their full row (to answer without expanding everything).
+    @Published var peekOpen: Set<String> = []
+    func togglePeek(_ s: Session) { if peekOpen.contains(s.id) { peekOpen.remove(s.id) } else { peekOpen.insert(s.id) } }
+
     /// Collapsed view: sessions that need you, then the ones that just finished (newest first).
     var peek: [Session] {
         let now = Date().timeIntervalSince1970
@@ -1338,6 +1345,7 @@ struct NameField: View {
 struct Row: View {
     let s: Session
     @ObservedObject var store: Store
+    var inPeek = false   // opened from the collapsed list: offers ⌃ to fold back
     @State private var hover = false
 
     var statusLine: (String, Color) {
@@ -1403,7 +1411,11 @@ struct Row: View {
             Spacer(minLength: 4)
             VStack(spacing: 6) {
                 IconButton(symbol: "arrow.up.forward.square", help: "Jump to \(store.terminalLabel(s))") { store.jump(s) }
-                IconButton(symbol: "xmark", help: "Hide until it does something new") { store.hide(s) }
+                if inPeek {
+                    IconButton(symbol: "chevron.up", help: "Fold back to one line") { store.togglePeek(s) }
+                } else {
+                    IconButton(symbol: "xmark", help: "Hide until it does something new") { store.hide(s) }
+                }
             }
         }
         .padding(10)
@@ -1771,7 +1783,7 @@ struct CompactRow: View {
             }
             .font(.system(size: 10.5, weight: .semibold)).fixedSize().layoutPriority(1)
             }
-            if hover {
+            if hover || (why && s.state == "waiting") {
                 IconButton(symbol: "arrow.up.forward.square", help: "Jump to \(store.terminalLabel(s))") { store.jump(s) }
             }
         }
@@ -1780,10 +1792,12 @@ struct CompactRow: View {
         .background(RoundedRectangle(cornerRadius: 7).fill(Color.white.opacity(hover ? 0.08 : 0.035)))
         .contentShape(Rectangle())
         .onHover { hover = $0 }
-        .onTapGesture {   // a click anywhere outside the row's buttons goes there (not while typing in it)
-            if store.editing != s.id && store.replying != s.id { store.jump(s) }
+        .onTapGesture {
+            // Collapsed "Needs you" line: open it in place to answer. Otherwise: go to the session.
+            if why && s.state == "waiting" { store.togglePeek(s) }
+            else if store.editing != s.id && store.replying != s.id { store.jump(s) }
         }
-        .tip(store.rowHelp(s))
+        .tip(why && s.state == "waiting" ? "Click to see what it needs and answer here · ↗ jumps to it" : store.rowHelp(s))
     }
 }
 
@@ -1886,7 +1900,10 @@ struct SpyglassView: View {
             if store.collapsed && !store.peek.isEmpty {
                 // Collapsed: still show which session just rang or needs you; click to jump (and clear it).
                 VStack(alignment: .leading, spacing: 2) {
-                    ForEach(store.peek) { CompactRow(s: $0, store: store, why: true) }
+                    ForEach(store.peek) { s in
+                        if store.peekOpen.contains(s.id) { Row(s: s, store: store, inPeek: true) }
+                        else { CompactRow(s: s, store: store, why: true) }
+                    }
                 }
             }
             if !store.collapsed {
@@ -2189,6 +2206,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             if k == "compact" { store.compact = v == "true" }
             if k == "welcome" { store.showWelcome = v == "true" }
             if k == "collapsed" { store.collapsed = v == "true" }
+            if k.hasPrefix("peekOpen:") { store.peekOpen.insert(String(k.dropFirst(9))) }
             if ["soundDone", "soundNeeds", "autoShow"].contains(k) {
                 switch k { case "soundDone": store.soundDone = v == "true"; case "soundNeeds": store.soundNeeds = v == "true"; default: store.autoShow = v == "true" }
             }
@@ -2215,6 +2233,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     if args.contains("--selftest") {
         if let d = try? JSONSerialization.data(withJSONObject: ["wakes": wakes]) { print(String(data: d, encoding: .utf8)!) }
         if let d = try? JSONSerialization.data(withJSONObject: ["peek": store.peek.map(\.id)]) { print(String(data: d, encoding: .utf8)!) }
+        if let d = try? JSONSerialization.data(withJSONObject: ["peekOpen": Array(store.peekOpen).sorted()]) { print(String(data: d, encoding: .utf8)!) }
         for s in store.sessions {
             var row: [String: Any] = ["id": s.id, "name": s.displayTitle, "state": s.state, "contextFull": s.contextFull,
                                       "canRename": store.canRename(s)]
