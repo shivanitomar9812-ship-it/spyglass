@@ -988,8 +988,18 @@ final class Store: ObservableObject {
     // MARK: Where a session runs
 
     private var appNames: [String: String] = [:]
+    /// Names for apps Claude runs in, known without asking macOS (which only knows installed apps).
+    static let knownApps: [String: String] = [
+        "com.todesktop.230313mzl4w4u92": "Cursor", "com.microsoft.VSCode": "VS Code", "com.microsoft.VSCodeInsiders": "VS Code Insiders",
+        "com.exafunction.windsurf": "Windsurf", "com.vscodium": "VSCodium", "com.googlecode.iterm2": "iTerm2",
+        "com.apple.Terminal": "Terminal", "com.anthropic.claudefordesktop": "Claude", "com.cmuxterm.app": "cmux",
+        "com.mitchellh.ghostty": "Ghostty", "dev.warp.Warp-Stable": "Warp", "net.kovidgoyal.kitty": "kitty",
+        "com.github.wez.wezterm": "WezTerm", "com.jetbrains.intellij": "IntelliJ IDEA", "com.jetbrains.intellij.ce": "IntelliJ IDEA CE",
+        "com.jetbrains.pycharm": "PyCharm", "com.jetbrains.WebStorm": "WebStorm", "com.jetbrains.goland": "GoLand",
+    ]
     func appName(_ bundle: String?) -> String? {
         guard let b = bundle, !b.isEmpty else { return nil }
+        if let n = Store.knownApps[b] { return n }
         if let n = appNames[b] { return n }
         var name = b
         if let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: b) {

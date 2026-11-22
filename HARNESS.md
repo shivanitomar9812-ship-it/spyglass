@@ -63,6 +63,7 @@ Claude Code 2.1.330, `PermissionRequest` hook (2026-11-22):
 | — | Terminal.app `do script` presses Enter after every key: a test drifted from a dialog into settings and vim (found live) | Terminal.app gets text commands only; keys route to "Answer in Terminal ↗"; never type exploratory commands into test sessions |
 | 0.13.0 | README claimed Claude desktop app sessions show in Spyglass; a live test showed they run in the cloud or a sandboxed VM that ignores local plugins (no hooks, no process, no transcript on the Mac) | support claims need a live session per host before they ship; untested hosts are marked untested |
 | 0.16.0 | Names showed Claude Code's status symbol ("✳ TTD channel…") once Cursor tabs show Claude's title | `panel_test.sh` fixture tab name starts with "✳ " |
+| 0.20.1 (CI) | App names came only from macOS's list of installed apps: on a Mac without Cursor (CI) a row said "com.todesktop.230313mzl4w4u92" | built-in names for known apps; CI on GitHub's macOS runners caught it on its first run |
 | 0.20.0 | Yes / No missing when the question followed a statement (yes/no judged on the first word; found rendering the demo GIF) | `panel_test.sh` "yes/no judged on the asking sentence" |
 | 0.20.0 (local) | A reply arrived as "yesyes": text already typed in Claude's input merged with Spyglass's "yes" (reported by the user; one send, confirmed by the claim log) | text sends clear the input first (Ctrl-U / Backspace); `core_test.js` checks the clear prefix, and keys stay unprefixed |
 | 0.19.0 | A plain-text question didn't pop up in sessions running hooks older than 0.18 (every long-running session; reported by the user) | the panel also reads the question from the transcript; `panel_test.sh` old-hooks checks |
@@ -87,4 +88,4 @@ Covered by fixture tests only; each needs one live session before the README can
 - cmux: jump to a real cmux session (control refusal is confirmed)
 - Ghostty, Warp, kitty and other terminals: detection, jump
 - The panel coming back on its own when a session needs you (logic tested; the window appearing was not watched)
-- CI (`.github/workflows/ci.yml`) runs on GitHub's macOS runners: the first run is its live check
+- Tests must not depend on what's installed on the machine running them; CI (a clean Mac) is the check.
