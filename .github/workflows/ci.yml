@@ -14,6 +14,8 @@ jobs:
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
+      - name: The committed binary is universal (Intel and Apple silicon)
+        run: lipo -archs plugin/bin/Spyglass | tee /dev/stderr | grep -q 'x86_64 arm64'
       - name: Build the panel from source (universal)
         run: bash plugin/app/build.sh plugin/bin/Spyglass --universal
       - name: Run the tests on that build
