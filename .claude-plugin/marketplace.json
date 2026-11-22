@@ -1,0 +1,15 @@
+{
+  "name": "spyglass",
+  "owner": {
+    "name": "Spyglass contributors"
+  },
+  "description": "Spyglass: a floating macOS panel for all your running Claude Code sessions.",
+  "plugins": [
+    {
+      "name": "spyglass",
+      "description": "A floating macOS panel showing every running Claude Code session: what it's doing, progress, and which ones need you. Click to jump to its terminal tab.",
+      "source": "./plugin",
+      "category": "productivity"
+    }
+  ]
+}

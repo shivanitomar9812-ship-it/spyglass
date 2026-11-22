@@ -1,0 +1,17 @@
+{
+  "description": "Record session state for the Spyglass panel and start the panel on session start",
+  "hooks": {
+    "SessionStart":     [{ "hooks": [
+      { "type": "command", "command": "bash \"${CLAUDE_PLUGIN_ROOT}/scripts/launch.sh\" >/dev/null 2>&1 || true", "timeout": 30 },
+      { "type": "command", "command": "bash \"${CLAUDE_PLUGIN_ROOT}/scripts/record.sh\" 2>/dev/null || true", "timeout": 5 } ] }],
+    "UserPromptSubmit": [{ "hooks": [{ "type": "command", "command": "bash \"${CLAUDE_PLUGIN_ROOT}/scripts/record.sh\" 2>/dev/null || true", "timeout": 5 }] }],
+    "PreToolUse":       [{ "hooks": [{ "type": "command", "command": "bash \"${CLAUDE_PLUGIN_ROOT}/scripts/record.sh\" 2>/dev/null || true", "timeout": 5 }] }],
+    "PostToolUse":      [{ "hooks": [{ "type": "command", "command": "bash \"${CLAUDE_PLUGIN_ROOT}/scripts/record.sh\" 2>/dev/null || true", "timeout": 5 }] }],
+    "PermissionRequest":[{ "hooks": [
+      { "type": "command", "command": "bash \"${CLAUDE_PLUGIN_ROOT}/scripts/record.sh\" 2>/dev/null || true", "timeout": 5 },
+      { "type": "command", "command": "bash \"${CLAUDE_PLUGIN_ROOT}/scripts/answer.sh\" 2>/dev/null", "timeout": 3600 } ] }],
+    "Notification":     [{ "hooks": [{ "type": "command", "command": "bash \"${CLAUDE_PLUGIN_ROOT}/scripts/record.sh\" 2>/dev/null || true", "timeout": 5 }] }],
+    "Stop":             [{ "hooks": [{ "type": "command", "command": "bash \"${CLAUDE_PLUGIN_ROOT}/scripts/record.sh\" 2>/dev/null || true", "timeout": 5 }] }],
+    "SessionEnd":       [{ "hooks": [{ "type": "command", "command": "bash \"${CLAUDE_PLUGIN_ROOT}/scripts/record.sh\" 2>/dev/null || true", "timeout": 5 }] }]
+  }
+}

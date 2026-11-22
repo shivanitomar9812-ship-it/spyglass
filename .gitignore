@@ -1,0 +1,5 @@
+.DS_Store
+*.vsix
+plugin/bin/Spyglass.arm64
+plugin/bin/Spyglass.x86_64
+tests/out/
