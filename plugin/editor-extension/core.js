@@ -11,6 +11,9 @@ const ALLOWED = /^\/model (opus|sonnet|haiku)$/;
 const NAME = '[^\\x00-\\x1f\\x7f]{1,80}';   // one line, no control characters
 const RENAME = new RegExp(`^/rename ${NAME}$`);
 const TAB_NAME = new RegExp(`^${NAME}$`);
+// Before typing text, clear whatever is half-typed in Claude's input (up to 4 lines; harmless when empty).
+const CLEAR = '\x15\x7f\x15\x7f\x15\x7f\x15';
+const SAY = /^(?!\/)(?! )[^\x00-\x1f\x7f]{1,1500}$/;   // replies: one line, not a slash command
 // Permission prompt answers: "1" picks "Yes" (never "always allow"); Esc declines. send.sh checks the prompt is still pending.
 // Enter confirms the highlighted option (Claude Code's "Switch model?" dialog, after the user confirmed in Spyglass).
 // key:1-4 pick an option of Claude's question (send.sh checks it is still pending).
@@ -111,13 +114,21 @@ async function send(vscode, st) {
     fs.writeFileSync(file('send-response.json'), JSON.stringify({ ts: req.ts, ok, core: true }));
     return;
   }
+  if (typeof req.text === 'string' && req.text.startsWith('say:')) {
+    // A reply to a question Claude asked in text: one line, no control characters; typed, then Enter.
+    const text = req.text.slice('say:'.length);
+    const ok = SAY.test(text);
+    if (ok) { t.sendText(CLEAR + text, false); await new Promise(r => setTimeout(r, 300)); t.sendText('\r', false); }
+    fs.writeFileSync(file('send-response.json'), JSON.stringify({ ts: req.ts, ok, core: true }));
+    return;
+  }
   const key = Object.hasOwn(KEYS, req.text) ? KEYS[req.text] : null;
   const ok = !!key || (typeof req.text === 'string' && (ALLOWED.test(req.text) || RENAME.test(req.text)));
   if (key) {
     t.sendText(key, false);
   } else if (ok) {
     // Text and Enter go separately so Claude Code doesn't take it as a paste.
-    t.sendText(req.text, false);
+    t.sendText(CLEAR + req.text, false);
     await new Promise(r => setTimeout(r, 300));
     t.sendText('\r', false);
   }

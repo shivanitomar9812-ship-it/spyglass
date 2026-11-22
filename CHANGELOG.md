@@ -2,6 +2,14 @@
 
 All releases so far were made on 2026-11-22. Versions before 0.16.0 were released under the name Tower. Bugs that escaped to a release, and the check that now catches each, are in [HARNESS.md](HARNESS.md).
 
+## 0.20.0
+- Reply from the panel: a question Claude asks in text gets **Yes / No** (for yes/no questions) and **Reply…** (one line, Enter sends). Spyglass types it only while the session waits on you with nothing else open, only where it can type, and never a slash command.
+- Before typing text (a reply, `/model`, `/rename`), Spyglass clears anything half-typed in Claude's input, so a draft can't merge with it.
+- Click a row to jump there (was double-click).
+- ⚙ settings: chime when a session finishes, ping when one needs you, come back when one needs you, compact view, start at login, show welcome.
+- Rows on hooks older than the installed Spyglass show ↻: restart them (`claude --resume`) for the newest features.
+- Finished rows preview the last line of Claude's reply.
+
 ## 0.19.1
 - A question at the end of a turn now pops up in every session, including ones running older hooks: the panel also reads it from the transcript.
 

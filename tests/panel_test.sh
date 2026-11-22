@@ -56,6 +56,11 @@ eq "context warning at 91%" "true" "$(row ctx .contextFull)"
 eq "no warning at 6%" "false" "$(row tab .contextFull)"
 eq "permission card" "waiting|rm -rf build" "$(row perm '"\(.state)|\(.permission)"')"
 eq "asked in plain text: waiting, question shown" "waiting|Shall I continue with the welcome card?" "$(row asked '"\(.state)|\(.asked)"')"
+eq "asked: reply from the panel (Cursor terminal), yes/no question" "true|true" "$(row asked '"\(.canReply)|\(.yesNo)"')"
+cp "$SCRIPTS/send.sh" "$SPYGLASS_HOME/send.sh"; cp "$BIN" "$SPYGLASS_HOME/Spyglass"   # what the panel runs, as installed
+SPYGLASS_SEND_LOG="$TMP/say.log" SPYGLASS_NO_REGISTRY=1 "$BIN" --selftest --say "asked:yes" >/dev/null 2>&1
+eq "Yes sends exactly 'yes'" "say:yes" "$(cat "$TMP/say.log" 2>/dev/null)"
+f="$SPYGLASS_HOME/sessions/asked.json"; jq '.status = "waiting" | .asked = {text: "Shall I continue with the welcome card?", at: 6}' "$f" > "$f.t" && mv "$f.t" "$f"   # undo the reply
 eq "asked: hover says so" 1 "$(row asked .hover | grep -cF 'Claude asked "Shall I continue')"
 eq "question card" "Which fruit would you like?|Apple,Banana,Cherry" "$(row ask .question)"
 # Escaped bug (0.12.0): .help tooltips never show on Spyglass's non-activating panel; hover text must use .tip.
@@ -177,10 +182,23 @@ session o-repl '{"title":"Old hooks, you replied","titleSource":"ai","status":"d
 { say "Built it."; say $'All tests pass.\n\nShould I release it as 0.19.0?'; } > "$T/o-ask.jsonl"
 { say "Should I release?"; echo '{"type":"assistant","message":{"content":[{"type":"tool_use","name":"Bash"}]}}'; } > "$T/o-tool.jsonl"
 { say "Should I release?"; echo '{"type":"user","message":{"content":"yes"}}'; } > "$T/o-repl.jsonl"
+session o-done '{"title":"Old hooks, finished","titleSource":"ai","status":"done"}'
+{ say "Working on it."; say $'Done.\n\nAll 187 checks pass.'; } > "$T/o-done.jsonl"
 outo=$(SPYGLASS_NO_REGISTRY=1 "$BIN" --selftest 2>/dev/null)
+eq "old hooks: finished row previews the last line" "done|All 187 checks pass." "$(echo "$outo" | jq -r 'select(.id == "o-done") | "\(.state)|\(.lastLine)"')"
 eq "old hooks: a question at the end shows as waiting" "waiting|Should I release it as 0.19.0?" "$(echo "$outo" | jq -r 'select(.id == "o-ask") | "\(.state)|\(.asked)"')"
 eq "old hooks: tool call last, not a question" "done" "$(echo "$outo" | jq -r 'select(.id == "o-tool") | .state')"
 eq "old hooks: you already replied" "done" "$(echo "$outo" | jq -r 'select(.id == "o-repl") | .state')"
+export SPYGLASS_HOME="$TMP/tower"
+
+# Sessions on hooks older than the installed Spyglass get a "restart for the newest features" hint.
+export SPYGLASS_HOME="$TMP/versions"; mkdir -p "$SPYGLASS_HOME/sessions"; echo "0.20.0" > "$SPYGLASS_HOME/version"
+session v-old '{"title":"Old","titleSource":"ai","status":"done","hooks":"0.17.0"}'
+session v-new '{"title":"New","titleSource":"ai","status":"done","hooks":"0.20.0"}'
+session v-none '{"title":"None","titleSource":"ai","status":"done"}'
+outv=$(SPYGLASS_NO_REGISTRY=1 "$BIN" --selftest 2>/dev/null)
+eq "old hooks hinted, current not, none hinted" "true|false|true" "$(for id in v-old v-new v-none; do echo "$outv" | jq -r --arg i $id 'select(.id == $i) | .oldHooks'; done | paste -sd'|' -)"
+eq "hint explains the restart" 1 "$(echo "$outv" | jq -r 'select(.id == "v-old") | .hover' | grep -cF 'claude --resume')"
 export SPYGLASS_HOME="$TMP/tower"
 
 # Collapsed panel: a session that just finished (the chime) shows under the header, after the ones that need you.
@@ -193,6 +211,15 @@ session p-old  '{"title":"Done long ago","titleSource":"ai","status":"done"}'
 flip=$!
 outp=$(SPYGLASS_NO_REGISTRY=1 "$BIN" --selftest --twice --state '{"collapsed":"true"}' --snapshot "$ROOT/tests/out/panel-collapsed.png" 2>/dev/null); wait "$flip"
 eq "collapsed: needs-you first, then what just finished; older done rows stay hidden" '["p-wait","p-work"]' "$(echo "$outp" | jq -c 'select(.peek) | .peek')"
+export SPYGLASS_HOME="$TMP/tower"
+
+# Settings: with "come back when a session needs you" off, a new waiting session doesn't bring the panel back.
+export SPYGLASS_HOME="$TMP/autoshow"; mkdir -p "$SPYGLASS_HOME/sessions"
+session a-later '{"title":"Later","titleSource":"ai","status":"done"}'
+( sleep 0.5; f="$SPYGLASS_HOME/sessions/a-later.json"; jq '.status = "waiting" | .permission = {tool: "Bash", detail: "x", at: 9}' "$f" > "$f.t" && mv "$f.t" "$f" ) &
+flip=$!
+w=$(SPYGLASS_NO_REGISTRY=1 "$BIN" --selftest --twice --state '{"autoShow":"false"}' 2>/dev/null | jq -c 'select(.wakes) | .wakes'); wait "$flip"
+eq "come back off: no wake" "[]" "$w"
 export SPYGLASS_HOME="$TMP/tower"
 
 # Welcome card checklist ticks itself off (fake home; which editors are installed is machine-specific, so not asserted).

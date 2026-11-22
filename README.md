@@ -14,6 +14,9 @@ Running several Claude Code sessions at once? Spyglass keeps a small always-on-t
 - **Names you recognise**: your `/rename`, else the name you gave the Cursor / VS Code tab, else Claude's own title
 - **Model and context** on every row; at 85% context the row turns red, with one sound, so you can `/compact` first
 - **Usage that fits your plan**: on a subscription, the header shows how much of the 5-hour and weekly limits is left and when they renew, and rows show tokens used. On an API key, rows show $. Past a limit, the header says extra usage is billed at API prices (if it's on) and rows show the $ added since. Behind a spend-capped Claude gateway, the header shows the spend
+- **Last line**: finished rows preview the last line of Claude's reply
+- **Restart hints**: ↻ on rows whose hooks are older than the installed Spyglass (`claude --resume` brings the newest features)
+- **Settings** (⚙): sounds, coming back, compact view, start at login
 - **Hover for context**: how long it has been working or waiting, last prompt, folder and branch, model, context, tokens, and which tab it lives in
 - **Compact view**: one line per session, grouped by repo; rows that need you stay full size
 - **Collapsed, it still tells you what rang**: under the header, one line for each session that needs you or just finished; click to jump
@@ -26,10 +29,11 @@ Running several Claude Code sessions at once? Spyglass keeps a small always-on-t
 |---|---|
 | **Allow once / Deny** a permission prompt | answers it through Claude Code's permission hook, so it works wherever the session runs (terminal, Claude panel, JetBrains, cmux). The terminal prompt stays usable and the first answer wins; Deny stops the turn like Esc. Never "always allow" |
 | **Answer a question** (single choice, up to 4 options) | presses the option's number; bigger questions point you to the terminal |
+| **Reply** to a question Claude asks in text | **Yes / No** for yes/no questions, or **Reply…** for one line; typed only while the session waits on you, only where Spyglass can type, never a slash command |
 | **Switch model** (Opus, Sonnet, Haiku) | asks you to confirm, types `/model`, answers Claude Code's "Switch model?" prompt, and leaves your default model for new sessions unchanged |
 | **Rename** (pencil on hover) | runs `/rename` and renames the terminal tab to match |
 | **Resume** an ended session | opens a new tab in the same terminal and runs `claude --resume` in its folder |
-| **Jump** (↗ or double-click) | brings that exact tab to the front |
+| **Jump** (click the row, or ↗) | brings that exact tab to the front |
 
 The panel stays out of the way: it never takes focus from your editor, ✕ hides it (the menu bar icon brings it back), and it **comes back by itself** when a session newly needs you.
 

@@ -34,6 +34,21 @@ send answer:2 q1 200; eq "answer sent" 0 $?
 eq "answer types its number" "key:2|" "$(typed)"
 eq "question cleared" "null|working" "$(jq -r '"\(.question)|\(.status)"' "$SPYGLASS_HOME/sessions/q1.json")"
 
+# Replies to a question asked in text: typed + Enter, only while it waits with nothing else open.
+echo '{"status":"waiting","asked":{"text":"Shall I go ahead?","at":1}}' > "$SPYGLASS_HOME/sessions/rp.json"
+: > "$SPYGLASS_SEND_LOG"
+send "reply:yes, go ahead" rp; eq "reply sent" 0 $?
+eq "reply typed as say:" "say:yes, go ahead|" "$(typed)"
+eq "row marked replied" "working|null" "$(jq -r '"\(.status)|\(.asked)"' "$SPYGLASS_HOME/sessions/rp.json")"
+for bad in "/model opus" "$(printf 'a\nb')" "" " lead"; do
+  echo '{"status":"waiting","asked":{"text":"Q?","at":1}}' > "$SPYGLASS_HOME/sessions/rp.json"
+  send "reply:$bad" rp >/dev/null 2>&1; rc=$?; eq "reply refused: $(printf %q "$bad" | cut -c1-14)" 3 $rc
+done
+echo '{"status":"waiting","asked":{"text":"Q?","at":1},"permission":{"at":2}}' > "$SPYGLASS_HOME/sessions/rp.json"
+send "reply:yes" rp >/dev/null 2>&1; rc=$?; eq "reply refused while a prompt is open" 4 $rc
+echo '{"status":"working"}' > "$SPYGLASS_HOME/sessions/rp.json"
+send "reply:yes" rp >/dev/null 2>&1; rc=$?; eq "reply refused while working" 4 $rc
+
 # /model: fake Claude applies it (writes the transcript and saves the default, like the real one).
 # dialog=1: it first waits for Enter, like "Switch model?" on a cached conversation.
 fake_claude() {   # fake_claude <transcript> <dialog 0|1> <model>
@@ -80,6 +95,8 @@ eq "Terminal: model text"       "terminal /model opus|0" "$(r Apple_Terminal '/m
 eq "Terminal: no Deny key"      "none key:deny|2"        "$(r Apple_Terminal key:deny)"
 eq "Terminal: no answer key"    "none key:1|2"           "$(r Apple_Terminal answer:1)"
 eq "cmux: not possible"         "none /model opus|2"     "$(r cmux '/model opus')"
+echo '{"status":"done","asked":{"text":"Q?","at":1}}' > "$SPYGLASS_HOME/sessions/rt.json"
+eq "Terminal: reply typed"      "terminal say:yes|0"     "$(out=$(launchd bash "$SCRIPTS/send.sh" Apple_Terminal /dev/ttys001 "" "" "" 123 "reply:yes" rt 2>/dev/null); rc=$?; echo "${out%%$'\n'*}|$rc")"
 unset SPYGLASS_SEND_ROUTE
 
 finish

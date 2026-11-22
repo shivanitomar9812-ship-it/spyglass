@@ -1,6 +1,6 @@
 {
   "name": "spyglass",
-  "version": "0.19.1",
+  "version": "0.20.0",
   "description": "A floating macOS panel showing every running Claude Code session: what it's doing, progress, and which ones need you. Click to jump to its terminal tab.",
   "author": {
     "name": "Spyglass contributors"

@@ -23,7 +23,8 @@ const sent = () => log.filter(x => x[0] === 'send').map(x => x[2]);
 (async () => {
   await wait(300);
   let r = await send('/model haiku');
-  eq('model typed, Enter separate', ['/model haiku', '\r'], sent()); eq('model ok', true, r.ok);
+  const C = '\x15\x7f\x15\x7f\x15\x7f\x15';
+  eq('model typed after clearing any draft, Enter separate', [C + '/model haiku', '\r'], sent()); eq('model ok', true, r.ok);
   for (const bad of ['rm -rf ~', '/model gpt', 'constructor', '/rename a\nb', '/rename x\u001b[2J']) {
     r = await send(bad); eq(`refused ${JSON.stringify(bad)}`, [false, []], [r.ok, sent()]);
   }
@@ -37,8 +38,11 @@ const sent = () => log.filter(x => x[0] === 'send').map(x => x[2]);
     await core.send(vscode, st2);
     eq('second loader does not type again', ['1'], sent()); }
   r = await send('key:9'); eq('key:9 refused', false, r.ok);
+  r = await send('say:yes, go ahead'); eq('reply typed after clearing any draft, then Enter', [true, [C + 'yes, go ahead', '\r']], [r.ok, sent()]);
+  await send('key:1'); eq('keys are sent without clearing', ['1'], sent());
+  for (const bad of ['say:/model opus', 'say:a\nb', 'say:']) { r = await send(bad); eq(`reply refused ${JSON.stringify(bad)}`, [false, []], [r.ok, sent()]); }
   await send('/model opus', 9999); eq('other window ignores', [], sent());
-  r = await send('/rename Seg Lifecycle'); eq('rename typed', ['/rename Seg Lifecycle', '\r'], sent());
+  r = await send('/rename Seg Lifecycle'); eq('rename typed', [C + '/rename Seg Lifecycle', '\r'], sent());
   r = await send('tabname:Seg Lifecycle');
   eq('tab renamed, previous terminal active again', ['Seg Lifecycle', 5555, true],
      [vscode.window.terminals[0].name, vscode.window.activeTerminal.pid, r.ok]);

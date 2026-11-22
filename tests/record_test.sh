@@ -47,8 +47,12 @@ hook '{"session_id":"t","hook_event_name":"Notification","notification_type":"id
 eq "idle reminder keeps the question" "waiting" "$(field t .status)"
 hook '{"session_id":"t","hook_event_name":"UserPromptSubmit","prompt":"yes"}'
 eq "your reply clears it" "null|working" "$(field t '"\(.asked)|\(.status)"')"
-stop $'All done. Released as 0.17.0.'
+stop $'All done.\n\n- Released as **0.17.0**.'
 eq "plain ending: done" "done|null" "$(field t '"\(.status)|\(.asked)"')"
+eq "last line kept for the row preview" "Released as 0.17.0." "$(field t .lastLine)"
+CLAUDE_PLUGIN_ROOT="$ROOT/plugin" hook '{"session_id":"t","hook_event_name":"UserPromptSubmit","prompt":"next"}'
+eq "hooks record their Spyglass version" "$(jq -r .version "$ROOT/plugin/.claude-plugin/plugin.json")" "$(field t .hooks)"
+eq "a new prompt clears the preview" "null" "$(field t .lastLine)"
 stop $'Here is the fix:\n```\nif ok? then\n```'
 eq "code block ending: done" "done" "$(field t .status)"
 

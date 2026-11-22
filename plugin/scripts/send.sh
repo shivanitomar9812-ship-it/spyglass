@@ -2,7 +2,7 @@
 # Type into a Claude session's terminal. Args: TERM_PROGRAM, tty, app bundle id, cmux workspace, cmux surface, claude pid, command,
 # [session id, permission timestamp]. Commands: "/model opus|sonnet|haiku" (confirms Claude Code's "Switch model?" dialog; the user
 # already confirmed in Spyglass), or "key:approve" / "key:deny" to answer a permission prompt (sent only while that same prompt is still
-# pending), "answer:<1-4>" to pick an option of Claude's pending question (same guard), or "rename:<name>" to /rename the
+# pending), "reply:<text>" to answer a question Claude asked in plain text (only while it waits), "answer:<1-4>" to pick an option of Claude's pending question (same guard), or "rename:<name>" to /rename the
 # session and its terminal tab. Exit: 0 done, 1 failed / didn't apply,
 # 2 terminal not supported, 3 not allowed, 4 prompt gone.
 here="$(cd "$(dirname "$0")" && pwd)"
@@ -25,6 +25,15 @@ case "$cmd" in
     sf="$home/sessions/$sid.json"
     "$SG" json eq "$sf" .status '"waiting"' && "$SG" json eq "$sf" .question.at "$at" \
       && [ -n "$("$SG" json get "$sf" ".question.options.$((n - 1))")" ] || exit 4 ;;
+  reply:*)
+    kind=reply; text="${cmd#reply:}"
+    # One line, 1-500 chars, no control characters: typed into Claude's input box and sent with Enter.
+    LC_ALL=C; [[ ${#text} -ge 1 && ${#text} -le 1500 && ! "$text" =~ [[:cntrl:]] && "$text" != " "* && "$text" != /* ]] || exit 3
+    [ -n "$sid" ] || exit 3
+    # Only while the session waits on you with nothing else open (a pending prompt or question would get the text).
+    sf="$home/sessions/$sid.json"
+    [ -z "$("$SG" json get "$sf" .permission)" ] && [ -z "$("$SG" json get "$sf" .question)" ] || exit 4
+    case "$("$SG" json get "$sf" .status)" in working) exit 4 ;; esac ;;
   rename:*)
     kind=rename; name="${cmd#rename:}"
     # One line, 1-80 chars, no control characters: it is typed after "/rename " into Claude's input box.
@@ -70,6 +79,11 @@ route() {
 # Returns 0, 1, 2 (not possible in this terminal) or 4 (dialog gone).
 deliver() {
   local what="$1" how
+  # A reply travels as "say:<text>" (the editor core allow-lists it by that prefix); terminals type the text itself.
+  local plain="$what"; case "$what" in say:*) plain="${what#say:}" ;; esac
+  # Text first clears whatever is half-typed in Claude's input (Ctrl-U / Backspace, up to 4 lines; harmless when empty),
+  # so a draft can't merge with what Spyglass types. Keys (1, Esc, Enter) go to dialogs and are sent as they are.
+  local clear; clear=$(printf '\025\177\025\177\025\177\025')
   how=$(route "$what")
   # Test seams (tests/send_test.sh), never set by the panel: print the route, or log instead of typing.
   if [ -n "${SPYGLASS_SEND_ROUTE:-}" ]; then echo "$how $what"; [ "$how" = none ] && return 2; return 0; fi
@@ -77,19 +91,21 @@ deliver() {
   if [ "$how" = terminal ]; then
     # Terminal.app: do script types the text and presses Enter; "" is Enter alone; tabname sets the tab's custom title.
     local r
-    r=$(osascript - "$tty" "$what" <<'OSA' 2>/dev/null
+    r=$(osascript - "$tty" "$what" "$clear" <<'OSA' 2>/dev/null
 on run argv
   set what to item 2 of argv
   tell application "Terminal"
     repeat with w in windows
       repeat with t in tabs of w
         if tty of t is (item 1 of argv) then
-          if what starts with "tabname:" then
+          if what starts with "say:" then
+            do script ((item 3 of argv) & (text 5 thru -1 of what)) in t
+          else if what starts with "tabname:" then
             set custom title of t to (text 9 thru -1 of what)
           else if what is "key:enter" then
             do script "" in t
           else
-            do script what in t
+            do script ((item 3 of argv) & what) in t
           end if
           return "ok"
         end if
@@ -116,12 +132,15 @@ OSA
       key:[1-4])   send='tell s to write text (text 5 of (item 2 of argv)) newline no'
                    check='(contents of s contains "Enter to select")' ;;
       tabname:*)   send='set name of s to (text 9 thru -1 of (item 2 of argv))' ;;
-      *)           send='tell s to write text (item 2 of argv) newline no
+      say:*)       send='tell s to write text ((item 3 of argv) & (text 5 thru -1 of (item 2 of argv))) newline no
+          delay 0.3
+          tell s to write text ""' ;;
+      *)           send='tell s to write text ((item 3 of argv) & (item 2 of argv)) newline no
           delay 0.3
           tell s to write text ""' ;;
     esac
     local r
-    r=$(osascript - "$tty" "$what" <<OSA 2>/dev/null
+    r=$(osascript - "$tty" "$what" "$clear" <<OSA 2>/dev/null
 on run argv
   tell application "iTerm2"
     repeat with w in windows
@@ -179,6 +198,12 @@ if [ "$kind" = rename ]; then
   [ -f "$f" ] && "$SG" json set "$f" --str .title "$name" --str .titleSource custom
   deliver "tabname:$name"
   exit 0
+fi
+
+if [ "$kind" = reply ]; then
+  deliver "say:$text"; rc=$?
+  [ $rc = 0 ] && "$SG" json set "$home/sessions/$sid.json" --str .status working --str .activity "Replied from Spyglass" --del .asked
+  exit $rc
 fi
 
 if [ "$kind" = answer ]; then

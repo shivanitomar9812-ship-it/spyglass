@@ -19,8 +19,9 @@ if [ ! -x "$src" ]; then
 fi
 cp "$root/scripts/focus.sh" "$home/focus.sh"
 cp "$root/editor-extension/core.js" "$home/editor-core.js"   # hot-loaded by the Cursor / VS Code extension
-cp "$root/scripts/stats.sh" "$root/scripts/send.sh" "$root/scripts/resume.sh" "$root/scripts/statusline.sh" "$home/" \
-  && chmod +x "$home/stats.sh" "$home/send.sh" "$home/resume.sh" "$home/statusline.sh"
+"$root/bin/Spyglass" json get "$root/.claude-plugin/plugin.json" .version > "$home/version" 2>/dev/null   # the panel compares sessions' hooks with it
+cp "$root/scripts/stats.sh" "$root/scripts/send.sh" "$root/scripts/resume.sh" "$root/scripts/statusline.sh" "$root/scripts/login.sh" "$home/" \
+  && chmod +x "$home/stats.sh" "$home/send.sh" "$home/resume.sh" "$home/statusline.sh" "$home/login.sh"
 if ! cmp -s "$src" "$home/Spyglass"; then
   pkill -f "^$home/Spyglass$" 2>/dev/null
   # Wait for it to exit, or the check below sees it still shutting down and nothing restarts the panel.

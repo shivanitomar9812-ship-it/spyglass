@@ -30,6 +30,8 @@ struct Session: Identifiable, Codable, Equatable {
     var permission: Permission?  // pending permission prompt (PermissionRequest hook)
     var question: Question?      // pending AskUserQuestion
     var asked: Asked?            // the turn ended with a question for you (in plain text)
+    var lastLine: String?        // last line of Claude's final reply (finished turns)
+    var hooks: String?           // Spyglass version of the hooks this session runs
     var entrypoint: String?      // cli, claude-vscode (extension panel), claude-desktop, claude-code-jetbrains-plugin
     var ended: Double?           // set on entries in ended/ (sessions offered for Resume)
     var model: String?           // from stats/<id>.json (statusline), not the hooks
@@ -503,9 +505,10 @@ final class Store: ObservableObject {
 
         // A finished turn that ended by asking you something waits on you. Hooks since 0.18 record it; the panel also
         // reads it from the transcript, so sessions running older hooks (or none) show it too.
-        for (id, var s) in merged where s.asked == nil && s.permission == nil && s.question == nil
-            && (s.state == "done" || s.state == "idle") {
-            if let q = endingQuestion(s) {
+        for (id, var s) in merged where s.permission == nil && s.question == nil && (s.state == "done" || s.state == "idle") {
+            let r: (asked: Asked?, line: String?) = (s.asked == nil || s.lastLine == nil) ? lastReply(s) : (nil, nil)
+            if s.lastLine == nil, let l = r.line { s.lastLine = l; merged[id] = s }
+            if s.asked == nil, let q = r.asked {
                 s.asked = q; s.status = "waiting"; s.activity = "Asked you: " + CLI.cut(q.text, 70)
                 merged[id] = s
             }
@@ -529,13 +532,13 @@ final class Store: ObservableObject {
         // Stable order: by state group, then by when the session started (not last update, which changes constantly).
         out.sort { ($0.rank, $0.started ?? 0, $0.id) < ($1.rank, $1.started ?? 0, $1.id) }
         for s in out where lastState[s.id] != nil && lastState[s.id] != s.state {
-            if !muted, s.state == "waiting" { NSSound(named: "Ping")?.play() }
-            if !muted, s.state == "done" { NSSound(named: "Glass")?.play() }
+            if !muted, soundNeeds, s.state == "waiting" { NSSound(named: "Ping")?.play() }
+            if !muted, soundDone, s.state == "done" { NSSound(named: "Glass")?.play() }
             if s.state == "done" { justDone[s.id] = now }   // shown under a collapsed header until seen
         }
         // A session newly needs you (or one already does when Spyglass starts): bring a hidden panel back.
         // The Store's first reload runs before the app sets onNeedsYou, so "already waiting at start" counts from then.
-        if let wake = onNeedsYou {
+        if autoShow, let wake = onNeedsYou {
             let prev = wakePrimed ? lastState : [:]
             wakePrimed = true
             if let first = out.first(where: { $0.state == "waiting" && prev[$0.id] != "waiting" }) { wake(first) }
@@ -549,6 +552,14 @@ final class Store: ObservableObject {
         resolveSwitches(out, now: now)
         resolveReplies(out, now: now)
         resolveRenames(out, now: now)
+        if !textReplies.isEmpty {
+            var next = textReplies
+            for (id, r) in textReplies {
+                let s = out.first { $0.id == id }
+                if r.failed != nil ? now - r.since > 6 : (s == nil || s!.state != "waiting" || now - r.since > 15) { next[id] = nil }
+            }
+            if next != textReplies { textReplies = next }
+        }
         if !answers.isEmpty {
             var next = answers
             for (id, a) in answers {
@@ -611,6 +622,37 @@ final class Store: ObservableObject {
         runSend(s, approve ? "key:approve" : "key:deny", extra: [s.id, String(format: "%.0f", perm.at)]) { [weak self] code in
             let why = code == 4 ? "Prompt already answered" : code == 2 ? Store.noReply(s) : "Couldn't reach the terminal"
             self?.replies[s.id] = Reply(approve: approve, at: perm.at, since: Date().timeIntervalSince1970, failed: why)
+        }
+    }
+
+    // MARK: Replies to questions asked in text
+
+    /// Reply typed from the panel, in flight (or just failed).
+    @Published var textReplies: [String: Rename] = [:]
+    @Published var replying: String? = nil   // session whose reply box is open
+
+    func canReply(_ s: Session) -> Bool { s.asked != nil && s.permission == nil && s.question == nil && caps(s).typeText }
+
+    /// "Should I…", "Shall I…", "Do you want…": a yes / no question gets Yes and No buttons.
+    static func isYesNo(_ q: String) -> Bool {
+        let first = q.split(separator: " ").first.map { $0.lowercased() } ?? ""
+        return ["should", "shall", "do", "does", "did", "can", "could", "would", "will", "is", "are", "want", "ok", "okay"].contains(first)
+            || q.lowercased().contains("go ahead") || q.lowercased().contains("want me to")
+    }
+
+    func beginReply(_ s: Session) { guard canReply(s) else { return }; replying = s.id; onEditFocus?(true) }
+    func endReply() { guard replying != nil else { return }; replying = nil; onEditFocus?(false) }
+
+    /// Types the reply into the session (send.sh re-checks it still waits on you with nothing else open).
+    func sendReply(_ s: Session, _ raw: String) {
+        endReply()
+        let text = String(raw.unicodeScalars.filter { !CharacterSet.controlCharacters.contains($0) })
+            .trimmingCharacters(in: .whitespaces)
+        guard !text.isEmpty, !text.hasPrefix("/"), text.count <= 500, canReply(s), textReplies[s.id] == nil else { return }
+        textReplies[s.id] = Rename(name: text, since: Date().timeIntervalSince1970, failed: nil)
+        runSend(s, "reply:\(text)", extra: [s.id]) { [weak self] code in
+            let why = code == 4 ? "It's no longer waiting for a reply" : code == 2 ? Store.noReply(s) : "Couldn't reach the terminal"
+            self?.textReplies[s.id] = Rename(name: text, since: Date().timeIntervalSince1970, failed: why)
         }
     }
 
@@ -734,26 +776,29 @@ final class Store: ObservableObject {
     }
 
     /// The question the session's last reply ends with, read from the end of its transcript (cached by file size).
-    private var endings: [String: (size: UInt64, asked: Asked?)] = [:]
-    func endingQuestion(_ s: Session) -> Asked? {
+    private var endings: [String: (size: UInt64, asked: Asked?, line: String?)] = [:]
+    func endingQuestion(_ s: Session) -> Asked? { lastReply(s).asked }
+    /// The end of the session's last reply, read from the transcript: a question it asks, and its last line.
+    func lastReply(_ s: Session) -> (asked: Asked?, line: String?) {
         guard let url = transcriptURL(s.id, cwd: s.cwd),
               let attrs = try? FileManager.default.attributesOfItem(atPath: url.path),
-              let size = (attrs[.size] as? NSNumber)?.uint64Value else { return nil }
-        if let c = endings[s.id], c.size == size { return c.asked }
-        var found: Asked? = nil
+              let size = (attrs[.size] as? NSNumber)?.uint64Value else { return (nil, nil) }
+        if let c = endings[s.id], c.size == size { return (c.asked, c.line) }
+        var found: Asked? = nil, line: String? = nil
         if let fh = try? FileHandle(forReadingFrom: url) {
             defer { try? fh.close() }
             try? fh.seek(toOffset: size > 262_144 ? size - 262_144 : 0)
             let data = (try? fh.readToEnd()) ?? Data()
             // The last line that is the assistant speaking; the turn's final words are its last text block.
-            for line in data.split(separator: 0x0A).reversed() {
-                guard let o = try? JSONSerialization.jsonObject(with: line) as? [String: Any] else { continue }
+            for row in data.split(separator: 0x0A).reversed() {
+                guard let o = try? JSONSerialization.jsonObject(with: row) as? [String: Any] else { continue }
                 let type = o["type"] as? String
                 if type == "user", let m = o["message"] as? [String: Any], m["content"] is String { break }   // you replied
                 guard type == "assistant", let m = o["message"] as? [String: Any],
                       let blocks = m["content"] as? [[String: Any]] else { continue }
                 if blocks.contains(where: { ($0["type"] as? String) == "tool_use" }) { break }   // still working, not a final reply
                 guard let text = blocks.last(where: { ($0["type"] as? String) == "text" })?["text"] as? String else { continue }
+                line = CLI.lastLine(text)
                 if let q = CLI.endingQuestion(text) {
                     let at = ((attrs[.modificationDate] as? Date) ?? Date()).timeIntervalSince1970
                     found = Asked(text: q, at: at)
@@ -761,8 +806,23 @@ final class Store: ObservableObject {
                 break
             }
         }
-        endings[s.id] = (size, found)
-        return found
+        endings[s.id] = (size, found, line)
+        return (found, line)
+    }
+
+    /// The installed Spyglass version (launch.sh writes it next to the panel).
+    lazy var installedVersion: String? = (try? String(contentsOf: Store.home.appendingPathComponent("version"), encoding: .utf8))?
+        .trimmingCharacters(in: .whitespacesAndNewlines)
+    static func older(_ a: String, than b: String) -> Bool {
+        let x = a.split(separator: ".").compactMap { Int($0) }, y = b.split(separator: ".").compactMap { Int($0) }
+        for i in 0..<max(x.count, y.count) { let p = i < x.count ? x[i] : 0, q = i < y.count ? y[i] : 0; if p != q { return p < q } }
+        return false
+    }
+    /// The session runs hooks older than the installed Spyglass (or none): a restart brings the newest features.
+    func oldHooks(_ s: Session) -> Bool {
+        guard let cur = installedVersion, !cur.isEmpty else { return false }
+        guard let h = s.hooks else { return true }
+        return Store.older(h, than: cur)
     }
 
     // MARK: Hover text
@@ -835,6 +895,7 @@ final class Store: ObservableObject {
         var lines = [s.displayTitle, stateLine(s)]
         if s.state == "working", let a = s.activity, !a.isEmpty { lines.append("Now: \(a)") }
         if let p = s.prompt, !p.isEmpty { lines.append("Last prompt: “\(p)”") }
+        if s.state == "done", let l = s.lastLine { lines.append("Claude's last line: “\(l)”") }
         if let total = s.total, total > 0 { lines.append("Steps: \(s.done ?? 0) of \(total) done") }
         if let cwd = s.cwd {
             let home = FileManager.default.homeDirectoryForCurrentUser.path
@@ -850,6 +911,7 @@ final class Store: ObservableObject {
         if let st = Store.clock(s.started) { t.append("Started \(st)") }
         t.append("in \(terminalLabel(s))")
         lines.append(t.joined(separator: " "))
+        if oldHooks(s) { lines.append("Runs older Spyglass hooks\(s.hooks.map { " (\($0))" } ?? ""): restart it (claude --resume) for the newest features") }
         return lines.joined(separator: "\n")
     }
 
@@ -1056,6 +1118,26 @@ final class Store: ObservableObject {
 
     func hide(_ s: Session) { hidden[s.id] = s.updated ?? 0; reload() }
     var onHidePanel: (() -> Void)?
+
+    // MARK: Settings (⚙ menu)
+    private static func pref(_ k: String, _ def: Bool) -> Bool { UserDefaults.standard.object(forKey: k) as? Bool ?? def }
+    @Published var soundDone: Bool = Store.pref("soundDone", true)     // chime when a session finishes
+    @Published var soundNeeds: Bool = Store.pref("soundNeeds", true)   // ping when a session needs you
+    @Published var autoShow: Bool = Store.pref("autoShow", true)       // a hidden panel comes back when a session needs you
+    func setPref(_ k: String, _ v: Bool) {
+        UserDefaults.standard.set(v, forKey: k)
+        switch k { case "soundDone": soundDone = v; case "soundNeeds": soundNeeds = v; case "autoShow": autoShow = v; default: break }
+    }
+    var startsAtLogin: Bool {
+        FileManager.default.fileExists(atPath: Store.userHome + "/Library/LaunchAgents/dev.spyglass.panel.plist")
+    }
+    func setStartAtLogin(_ on: Bool) {
+        let p = Process()
+        p.executableURL = URL(fileURLWithPath: "/bin/bash")
+        p.arguments = [Store.home.appendingPathComponent("login.sh").path, on ? "on" : "off"]
+        try? p.run()
+        objectWillChange.send()
+    }
     /// Sessions that just finished (the chime), by id -> when. Collapsed, the panel lists them so you see which one rang.
     @Published var justDone: [String: Double] = [:]
     static let justDoneFor: Double = 15 * 60
@@ -1224,6 +1306,11 @@ struct NameField: View {
         } else {
             HStack(spacing: 4) {
                 Text(s.displayTitle).font(.system(size: 13, weight: .bold)).foregroundColor(.white).lineLimit(1)
+                if store.oldHooks(s) {
+                    Image(systemName: "arrow.triangle.2.circlepath").font(.system(size: 9, weight: .semibold))
+                        .foregroundColor(.white.opacity(0.35))
+                        .tip("Started before Spyglass \(store.installedVersion ?? "")\(s.hooks.map { " (runs \($0))" } ?? ""): restart it with claude --resume for the newest features")
+                }
                 if hover, store.canRename(s) {
                     Button { store.beginRename(s) } label: {
                         Image(systemName: "pencil").font(.system(size: 10, weight: .semibold)).foregroundColor(.white.opacity(0.6))
@@ -1264,7 +1351,8 @@ struct Row: View {
             Buddy(color: colorFor(s.id), state: s.state).tip(store.rowHelp(s))
             VStack(alignment: .leading, spacing: 3) {
                 NameField(s: s, store: store, hover: hover)
-                Text(s.activity ?? "").font(.system(size: 11.5)).foregroundColor(.white.opacity(0.6)).lineLimit(1)
+                Text(s.state == "done" ? (s.lastLine ?? s.activity ?? "") : s.asked != nil ? "Asked you" : (s.activity ?? ""))
+                    .font(.system(size: 11.5)).foregroundColor(.white.opacity(0.6)).lineLimit(1)
                 HStack(spacing: 8) {
                     Text(statusLine.0).font(.system(size: 11, weight: .semibold)).foregroundColor(statusLine.1)
                         .lineLimit(1).truncationMode(.tail).layoutPriority(0).tip(store.stateLine(s))
@@ -1312,7 +1400,9 @@ struct Row: View {
                     lineWidth: 1.5))
         .contentShape(Rectangle())
         .onHover { hover = $0 }
-        .onTapGesture(count: 2) { store.jump(s) }
+        .onTapGesture {   // a click anywhere outside the row's buttons goes there (not while typing in it)
+            if store.editing != s.id && store.replying != s.id { store.jump(s) }
+        }
         .tip(store.endedHelp(s))
     }
 }
@@ -1355,12 +1445,40 @@ struct AskedCard: View {
     let s: Session
     let asked: Asked
     @ObservedObject var store: Store
+    @State private var draft = ""
+    @FocusState private var focused: Bool
+
     var body: some View {
-        VStack(alignment: .leading, spacing: 5) {
+        VStack(alignment: .leading, spacing: 6) {
             Text(asked.text).font(.system(size: 11.5, weight: .semibold)).foregroundColor(.white.opacity(0.9))
                 .lineLimit(3).fixedSize(horizontal: false, vertical: true).tip(asked.text)
-            ReplyButton(title: "Reply in \(store.caps(s).app) ↗", color: accent) { store.jump(s) }
-                .tip("Jump to \(store.terminalLabel(s)) to answer")
+            if let r = store.textReplies[s.id] {
+                Text(r.failed.map { "⚠︎ \($0)" } ?? "Replying: \(r.name)…").font(.system(size: 11, weight: .semibold))
+                    .foregroundColor(r.failed == nil ? .white.opacity(0.6) : .orange).lineLimit(1)
+            } else if store.replying == s.id {
+                TextField("Reply to Claude…", text: $draft)
+                    .textFieldStyle(.plain).font(.system(size: 12)).foregroundColor(.white)
+                    .padding(.horizontal, 6).padding(.vertical, 4)
+                    .background(RoundedRectangle(cornerRadius: 6).fill(Color.white.opacity(0.12)))
+                    .focused($focused)
+                    .onAppear { draft = ""; DispatchQueue.main.async { focused = true } }
+                    .onSubmit { store.sendReply(s, draft) }
+                    .onExitCommand { store.endReply() }
+                    .tip("Enter sends it to the session · Esc cancels")
+            } else if store.canReply(s) {
+                HStack(spacing: 6) {
+                    if Store.isYesNo(asked.text) {
+                        ReplyButton(title: "Yes", color: accent) { store.sendReply(s, "yes") }.tip("Reply \"yes\"")
+                        ReplyButton(title: "No", color: .white.opacity(0.8)) { store.sendReply(s, "no") }.tip("Reply \"no\"")
+                    }
+                    ReplyButton(title: "Reply…", color: .white.opacity(0.8)) { store.beginReply(s) }.tip("Type a one-line reply")
+                    Spacer(minLength: 0)
+                    IconButton(symbol: "arrow.up.forward.square", help: "Jump to \(store.terminalLabel(s))") { store.jump(s) }
+                }
+            } else {
+                ReplyButton(title: "Reply in \(store.caps(s).app) ↗", color: accent) { store.jump(s) }
+                    .tip("Jump to \(store.terminalLabel(s)) to answer")
+            }
         }
         .padding(.top, 2)
     }
@@ -1488,6 +1606,34 @@ struct ModelPicker: View {
                  : !store.caps(s).typeText ? "Spyglass can't type into \(store.caps(s).app): jump there and use /model"
                  : "Model can be switched once the session is idle")
             }
+        }
+    }
+}
+
+/// ⚙ in the header: sounds, coming back, views, start at login, welcome.
+struct SettingsMenu: View {
+    @ObservedObject var store: Store
+    var body: some View {
+        if Store.snapshotMode {
+            Image(systemName: "gearshape").font(.system(size: 12, weight: .semibold)).frame(width: 22, height: 22)
+                .foregroundColor(.white.opacity(0.75))
+        } else {
+            Menu {
+                Section("Sounds") {
+                    Toggle("Chime when a session finishes", isOn: Binding(get: { store.soundDone }, set: { store.setPref("soundDone", $0) }))
+                    Toggle("Ping when a session needs you", isOn: Binding(get: { store.soundNeeds }, set: { store.setPref("soundNeeds", $0) }))
+                }
+                Section("Panel") {
+                    Toggle("Come back when a session needs you", isOn: Binding(get: { store.autoShow }, set: { store.setPref("autoShow", $0) }))
+                    Toggle("Compact view", isOn: Binding(get: { store.compact }, set: { _ in store.toggleCompact() }))
+                    Toggle("Start at login", isOn: Binding(get: { store.startsAtLogin }, set: { store.setStartAtLogin($0) }))
+                }
+                Button("Show welcome") { store.reopenWelcome() }
+            } label: {
+                Image(systemName: "gearshape").font(.system(size: 12, weight: .semibold)).foregroundColor(.white.opacity(0.75))
+            }
+            .menuStyle(.borderlessButton).menuIndicator(.hidden).fixedSize().frame(width: 22, height: 22)
+            .tip("Settings")
         }
     }
 }
@@ -1621,7 +1767,9 @@ struct CompactRow: View {
         .background(RoundedRectangle(cornerRadius: 7).fill(Color.white.opacity(hover ? 0.08 : 0.035)))
         .contentShape(Rectangle())
         .onHover { hover = $0 }
-        .onTapGesture(count: 2) { store.jump(s) }
+        .onTapGesture {   // a click anywhere outside the row's buttons goes there (not while typing in it)
+            if store.editing != s.id && store.replying != s.id { store.jump(s) }
+        }
         .tip(store.rowHelp(s))
     }
 }
@@ -1711,6 +1859,7 @@ struct SpyglassView: View {
                     Text(counts).font(.system(size: 11)).foregroundColor(.white.opacity(0.6)).lineLimit(1)
                 }
                 Spacer()
+                SettingsMenu(store: store)
                 IconButton(symbol: store.compact ? "rectangle.grid.1x2" : "list.bullet",
                            help: store.compact ? "Full rows" : "Compact view") { store.toggleCompact() }
                 IconButton(symbol: store.muted ? "speaker.slash" : "speaker.wave.2",
@@ -2017,6 +2166,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     store.compact = false   // tests choose with --state {"compact":"true"}; never the user's saved preference
     store.collapsed = false; store.muted = true   // likewise: snapshots never depend on the user's panel settings
     store.showWelcome = false                     // --state {"welcome":"true"} shows it
+    store.soundDone = true; store.soundNeeds = true; store.autoShow = true
     if let i = args.firstIndex(of: "--state"), i + 1 < args.count, let data = args[i + 1].data(using: .utf8),
        let o = try? JSONSerialization.jsonObject(with: data) as? [String: String] {
         // UI state that only clicks create, e.g. {"confirming:<id>":"sonnet","editing":"<id>"}
@@ -2026,6 +2176,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             if k == "compact" { store.compact = v == "true" }
             if k == "welcome" { store.showWelcome = v == "true" }
             if k == "collapsed" { store.collapsed = v == "true" }
+            if ["soundDone", "soundNeeds", "autoShow"].contains(k) {
+                switch k { case "soundDone": store.soundDone = v == "true"; case "soundNeeds": store.soundNeeds = v == "true"; default: store.autoShow = v == "true" }
+            }
         }
     }
     var wakes: [String] = []
@@ -2034,6 +2187,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     if let i = args.firstIndex(of: "--reply"), i + 1 < args.count {   // e.g. --reply s1:allow
         let parts = args[i + 1].split(separator: ":").map(String.init)
         if parts.count == 2, let s = store.sessions.first(where: { $0.id == parts[0] }) { store.reply(s, approve: parts[1] == "allow") }
+    }
+    if let i = args.firstIndex(of: "--say"), i + 1 < args.count {   // e.g. --say s1:yes  (send.sh logs it via SPYGLASS_SEND_LOG)
+        let parts = args[i + 1].split(separator: ":", maxSplits: 1).map(String.init)
+        if parts.count == 2, let s = store.sessions.first(where: { $0.id == parts[0] }) {
+            store.sendReply(s, parts[1])
+            Thread.sleep(forTimeInterval: 1.5)   // send.sh runs in the background
+        }
     }
     if args.contains("--twice") {   // tests change fixtures meanwhile
         Thread.sleep(forTimeInterval: 1.5)
@@ -2048,6 +2208,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             row["model"] = s.model; row["ctx"] = s.ctx; row["tabName"] = s.tabName
             row["permission"] = s.permission?.detail
             row["asked"] = s.asked?.text
+            row["lastLine"] = s.lastLine; row["oldHooks"] = store.oldHooks(s)
+            if s.asked != nil { row["canReply"] = store.canReply(s); row["yesNo"] = Store.isYesNo(s.asked!.text) }
             row["canAnswer"] = s.permission != nil ? store.canAnswerPermission(s) : nil
             row["question"] = s.question.map { "\($0.text)|\(($0.options ?? []).joined(separator: ","))" }
             row["tokens"] = s.tokens?.used; row["usage"] = store.usageLabel(s)
@@ -2297,6 +2459,18 @@ enum CLI {
         return (try? JSONSerialization.jsonObject(with: last)) as? [String: Any]
     }
 
+    /// The last line of a reply, for the row preview (markdown marks removed).
+    static func lastLine(_ message: String?) -> String? {
+        guard let m = message?.trimmingCharacters(in: .whitespacesAndNewlines), !m.isEmpty else { return nil }
+        let lines = m.split(separator: "\n", omittingEmptySubsequences: true).map(String.init)
+            .filter { !$0.hasPrefix("```") && !$0.trimmingCharacters(in: .whitespaces).isEmpty }
+        guard var last = lines.last else { return nil }
+        last = last.replacingOccurrences(of: "**", with: "").replacingOccurrences(of: "`", with: "")
+            .trimmingCharacters(in: .whitespaces)
+        for p in ["- ", "* ", "> "] where last.hasPrefix(p) { last.removeFirst(2) }
+        return last.isEmpty ? nil : cut(last, 160)
+    }
+
     /// The question a reply ends with, if its last line asks one ("…, shall I go ahead?"). Code blocks don't count.
     static func endingQuestion(_ message: String?) -> String? {
         guard let m = message?.trimmingCharacters(in: .whitespacesAndNewlines), !m.isEmpty, !m.hasSuffix("```") else { return nil }
@@ -2397,6 +2571,9 @@ enum CLI {
                 o["title"] = t; o["titleSource"] = "ai"
             }
         }
+        // Which Spyglass version these hooks are, so the panel can say when a restart would bring newer features.
+        if let root = ProcessInfo.processInfo.environment["CLAUDE_PLUGIN_ROOT"],
+           let v = JSON.get(JSON.load(root + "/.claude-plugin/plugin.json"), ".version") as? String { o["hooks"] = v }
         for (k, e) in [("term", "TERM_PROGRAM"), ("bundle", "__CFBundleIdentifier"), ("entrypoint", "CLAUDE_CODE_ENTRYPOINT")] {
             if !env(e).isEmpty { o[k] = env(e) }
         }
@@ -2406,6 +2583,7 @@ enum CLI {
         let ti = input["tool_input"] as? [String: Any] ?? [:]
         if ["SessionStart", "UserPromptSubmit", "PreToolUse", "PostToolUse", "Stop"].contains(ev) { o.removeValue(forKey: "permission") }
         if ev != "Notification" { o.removeValue(forKey: "asked") }   // any activity answers or supersedes it
+        if ev == "UserPromptSubmit" { o.removeValue(forKey: "lastLine") }
         if ["SessionStart", "UserPromptSubmit", "PostToolUse", "Stop"].contains(ev) || (ev == "PreToolUse" && tool != "AskUserQuestion") {
             o.removeValue(forKey: "question")
         }
@@ -2444,6 +2622,7 @@ enum CLI {
             }
         case "Stop":
             o["status"] = "done"; o["activity"] = "Finished — ready for you"
+            if let l = lastLine(input["last_assistant_message"] as? String) { o["lastLine"] = l }
             // A turn that ends by asking you something is waiting on you, even without a prompt or question tool.
             if let q = endingQuestion(input["last_assistant_message"] as? String) {
                 o["status"] = "waiting"; o["activity"] = "Asked you: " + cut(q, 70); o["asked"] = ["text": q, "at": now]
