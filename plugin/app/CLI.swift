@@ -271,24 +271,6 @@ enum CLI {
             }
         }
 
-        // 5. Leftovers from the old name (Tower)
-        var leftovers: [String] = []
-        if let t = try? fm.destinationOfSymbolicLink(atPath: Store.userHome + "/.claude/tower"), !t.isEmpty {} else if fm.fileExists(atPath: Store.userHome + "/.claude/tower") { leftovers.append("~/.claude/tower") }
-        if fm.fileExists(atPath: Store.userHome + "/Library/LaunchAgents/dev.tower.panel.plist") { leftovers.append("login item dev.tower.panel") }
-        for d in [".cursor/extensions", ".vscode/extensions", ".windsurf/extensions"] {
-            // The editor's own list says what's installed; an uninstalled extension's folder lingers until it restarts.
-            let dir = Store.userHome + "/" + d
-            let listed: Bool
-            if let list = JSON.load(dir + "/extensions.json") as? [[String: Any]] {
-                listed = list.contains { (JSON.get($0, ".identifier.id") as? String)?.lowercased() == "local.tower-focus" }
-            } else {
-                listed = ((try? fm.contentsOfDirectory(atPath: dir)) ?? []).contains { $0.hasPrefix("local.tower-focus-") }
-            }
-            if listed { leftovers.append("editor extension local.tower-focus (\(d.split(separator: "/").first ?? ""))") }
-        }
-        if leftovers.isEmpty { ok("No leftovers from the old name (Tower)") }
-        else { warn("Leftovers from the old name: " + leftovers.joined(separator: ", "), "Start a new Claude session (Spyglass migrates them); remove old editor extensions with /spyglass:editor") }
-
         print(problems == 0 ? "\nAll good." : "\n\(problems) thing\(problems == 1 ? "" : "s") to fix.")
         return problems == 0 ? 0 : 1
     }

@@ -9,7 +9,7 @@ echo '{"theme":"dark","statusLine":{"type":"command","command":"~/sl.sh"}}' > "$
 run setup.sh on >/dev/null
 echo '<plist/>' > "$H/Library/LaunchAgents/dev.spyglass.panel.plist"
 echo '{"terminal.integrated.tabs.title":"${sequence}","editor.fontSize":13}' > "$H/Library/Application Support/Cursor/User/settings.json"
-mkdir -p "$H/.claude/spyglass/sessions"; ln -s "$H/.claude/spyglass" "$H/.claude/tower"
+mkdir -p "$H/.claude/spyglass/sessions"
 
 before=$(cd "$H" && find . | sort; cat .claude/settings.json)
 out=$(run uninstall.sh)
@@ -21,7 +21,7 @@ eq "statusline: original back" '{"command":"~/sl.sh","type":"command"}' "$(jq -c
 eq "your other settings kept" "dark" "$(jq -r .theme "$H/.claude/settings.json")"
 eq "login item removed" "no" "$([ -f "$H/Library/LaunchAgents/dev.spyglass.panel.plist" ] && echo yes || echo no)"
 eq "tab-title setting reset, the rest kept" "null|13" "$(jq -r '"\(."terminal.integrated.tabs.title")|\(."editor.fontSize")"' "$H/Library/Application Support/Cursor/User/settings.json")"
-eq "state and old link removed" "no|no" "$([ -e "$H/.claude/spyglass" ] && echo yes || echo no)|$([ -L "$H/.claude/tower" ] && echo yes || echo no)"
+eq "state removed" "no" "$([ -e "$H/.claude/spyglass" ] && echo yes || echo no)"
 eq "says the last step" 1 "$(grep -c '/plugin uninstall spyglass@spyglass' <<<"$out")"
 
 # A statusline line added by hand: removed, with a backup; the rest of the script kept.

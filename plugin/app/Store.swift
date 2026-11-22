@@ -626,7 +626,7 @@ final class Store: ObservableObject {
                 let first = cmd.split(separator: " ").first.map(String.init) ?? ""
                 let file = first.hasPrefix("~") ? home + first.dropFirst() : first
                 if let t = try? String(contentsOfFile: file.replacingOccurrences(of: "\"", with: ""), encoding: .utf8),
-                   t.contains("spyglass/stats.sh") || t.contains("tower/stats.sh") { stats = true }
+                   t.contains("spyglass/stats.sh") { stats = true }
             }
         }
         // Editors installed, and whether the Spyglass Focus extension is in any of them.

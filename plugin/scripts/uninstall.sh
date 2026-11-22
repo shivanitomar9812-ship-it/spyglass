@@ -21,33 +21,32 @@ case "$cmd" in
   "") ;;
   *)
     file="${cmd%% *}"; file="${file/#\~/$HOME}"; file="${file//\"/}"
-    if [ -f "$file" ] && grep -qE '(spyglass|tower)/stats\.sh' "$file"; then
+    if [ -f "$file" ] && grep -qE 'spyglass/stats\.sh' "$file"; then
       step "remove the Spyglass line from your statusline script ${file/#$HOME/~} (backup: $(basename "$file").bak-spyglass-$stamp)"
       if [ $yes = 1 ]; then
         cp "$file" "$file.bak-spyglass-$stamp"
-        grep -vE '(spyglass|tower)/stats\.sh' "$file.bak-spyglass-$stamp" > "$file"
+        grep -vE 'spyglass/stats\.sh' "$file.bak-spyglass-$stamp" > "$file"
       fi
     fi ;;
 esac
 
 # 2. Login item
-for label in dev.spyglass.panel dev.tower.panel; do
-  plist="$HOME/Library/LaunchAgents/$label.plist"
-  [ -f "$plist" ] || continue
+label=dev.spyglass.panel; plist="$HOME/Library/LaunchAgents/$label.plist"
+if [ -f "$plist" ]; then
   step "remove the login item $label"
   if [ $yes = 1 ]; then real && launchctl bootout "gui/$(id -u)/$label" 2>/dev/null; rm -f "$plist"; fi
-done
+fi
 
 # 3. Editor extension and the tab-title setting (only if it's still the value Spyglass set)
 for app in Cursor Code Windsurf; do
   dir="$HOME/.$(echo "$app" | tr '[:upper:]' '[:lower:]')/extensions"; [ "$app" = Code ] && dir="$HOME/.vscode/extensions"
-  if ls "$dir" 2>/dev/null | grep -qE '^local\.(spyglass|tower)-focus-'; then
+  if ls "$dir" 2>/dev/null | grep -qE '^local\.spyglass-focus-'; then
     step "uninstall the Spyglass extension from $app"
     if [ $yes = 1 ] && real; then
       for cli in "/Applications/$app.app/Contents/Resources/app/bin/$(echo "$app" | tr '[:upper:]' '[:lower:]')" \
                  "/Applications/Visual Studio Code.app/Contents/Resources/app/bin/code"; do
         [ -x "$cli" ] || continue
-        "$cli" --uninstall-extension local.spyglass-focus >/dev/null 2>&1; "$cli" --uninstall-extension local.tower-focus >/dev/null 2>&1
+        "$cli" --uninstall-extension local.spyglass-focus >/dev/null 2>&1;
       done
     fi
   fi
@@ -59,14 +58,14 @@ for app in Cursor Code Windsurf; do
 done
 
 # 4. Panel, preferences, state
-if [ -e "$home" ] || [ -L "$HOME/.claude/tower" ]; then
+if [ -e "$home" ]; then
   step "quit the panel and delete its state (${home/#$HOME/~}) and preferences"
   if [ $yes = 1 ]; then
     if real; then
       pkill -f "^$home/Spyglass$" 2>/dev/null
-      defaults delete Spyglass >/dev/null 2>&1; defaults delete Tower >/dev/null 2>&1
+      defaults delete Spyglass >/dev/null 2>&1
     fi
-    rm -rf "$home"; [ -L "$HOME/.claude/tower" ] && rm -f "$HOME/.claude/tower"
+    rm -rf "$home"
   fi
 fi
 

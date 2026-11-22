@@ -4,7 +4,6 @@
 set -u
 root="$(cd "$(dirname "$0")/.." && pwd)"
 home="${SPYGLASS_HOME:-$HOME/.claude/spyglass}"
-bash "$root/scripts/migrate.sh" >/dev/null 2>&1   # from the old name (Tower); does nothing once moved
 mkdir -p "$home/sessions"
 
 [ "$(uname)" = "Darwin" ] || exit 0

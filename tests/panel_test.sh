@@ -193,7 +193,7 @@ eq "old hooks: finished row previews the last line" "done|All 187 checks pass." 
 eq "old hooks: a question at the end shows as waiting" "waiting|Should I release it as 0.19.0?" "$(echo "$outo" | jq -r 'select(.id == "o-ask") | "\(.state)|\(.asked)"')"
 eq "old hooks: tool call last, not a question" "done" "$(echo "$outo" | jq -r 'select(.id == "o-tool") | .state')"
 eq "old hooks: you already replied" "done" "$(echo "$outo" | jq -r 'select(.id == "o-repl") | .state')"
-export SPYGLASS_HOME="$TMP/tower"
+export SPYGLASS_HOME="$TMP/spyglass"
 
 # Sessions on hooks older than the installed Spyglass get a "restart for the newest features" hint.
 export SPYGLASS_HOME="$TMP/versions"; mkdir -p "$SPYGLASS_HOME/sessions"; echo "0.20.0" > "$SPYGLASS_HOME/version"
@@ -203,7 +203,7 @@ session v-none '{"title":"None","titleSource":"ai","status":"done"}'
 outv=$(SPYGLASS_NO_REGISTRY=1 "$BIN" --selftest 2>/dev/null)
 eq "old hooks hinted, current not, none hinted" "true|false|true" "$(for id in v-old v-new v-none; do echo "$outv" | jq -r --arg i $id 'select(.id == $i) | .oldHooks'; done | paste -sd'|' -)"
 eq "hint explains the restart" 1 "$(echo "$outv" | jq -r 'select(.id == "v-old") | .hover' | grep -cF 'claude --resume')"
-export SPYGLASS_HOME="$TMP/tower"
+export SPYGLASS_HOME="$TMP/spyglass"
 
 # Self-check: a session started after this Spyglass was installed, with no hook data after 30 s, gets a warning.
 # (Would have flagged the 0.17-0.20.3 bug within a minute.)
@@ -217,7 +217,7 @@ outs=$(SPYGLASS_CLAUDE_DIR="$RD" "$BIN" --selftest 2>/dev/null)
 eq "started after install, no hooks: warned" "true" "$(echo "$outs" | jq -r 'select(.id == "after") | .hooksMissing')"
 eq "started before install: not warned" "false" "$(echo "$outs" | jq -r 'select(.id == "before") | .hooksMissing')"
 kill $r1 $r2 2>/dev/null; wait $r1 $r2 2>/dev/null
-export SPYGLASS_HOME="$TMP/tower"
+export SPYGLASS_HOME="$TMP/spyglass"
 
 # ⌃⌥J jumps to the session that has waited on you longest.
 export SPYGLASS_HOME="$TMP/longest"; mkdir -p "$SPYGLASS_HOME/sessions"
@@ -225,7 +225,7 @@ session w-new '{"title":"Asked a minute ago","titleSource":"ai","status":"waitin
 session w-old '{"title":"Waiting ten minutes","titleSource":"ai","status":"waiting","permission":{"tool":"Bash","detail":"x","at":'$((now - 600))',"key":"k"}}'
 session w-done '{"title":"Done","titleSource":"ai","status":"done"}'
 eq "⌃⌥J picks the longest wait" "w-old" "$(SPYGLASS_NO_REGISTRY=1 "$BIN" --selftest 2>/dev/null | jq -r 'select(.longestWaiting) | .longestWaiting')"
-export SPYGLASS_HOME="$TMP/tower"
+export SPYGLASS_HOME="$TMP/spyglass"
 
 # Waiting on you: counted from when the prompt appeared; kept (waits.json) once answered.
 export SPYGLASS_HOME="$TMP/waits"; mkdir -p "$SPYGLASS_HOME/sessions"
@@ -236,7 +236,7 @@ eq "waiting 5 minutes counts ~5 minutes" "true" "$([ "$w1" -ge 290 ] && [ "$w1" 
 flip=$!; SPYGLASS_NO_REGISTRY=1 "$BIN" --selftest --twice >/dev/null 2>&1; wait "$flip"
 t=$(jq -r '.total | floor' "$SPYGLASS_HOME/waits.json" 2>/dev/null)
 eq "answered: the wait is kept for today" "true" "$([ "${t:-0}" -ge 290 ] && [ "$t" -le 330 ] && echo true || echo "false ($t)")"
-export SPYGLASS_HOME="$TMP/tower"
+export SPYGLASS_HOME="$TMP/spyglass"
 
 # Collapsed panel: a session that just finished (the chime) shows under the header, after the ones that need you.
 # Escaped (0.18.0): collapsed, the chime played but nothing showed which session it was.
@@ -253,7 +253,7 @@ eq "collapsed: needs-you first, then what just finished; older done rows stay hi
 outo2=$(SPYGLASS_NO_REGISTRY=1 "$BIN" --selftest --state '{"collapsed":"true","peekOpen:p-wait":"true","peekOpen:p-old":"true"}' \
   --snapshot "$ROOT/tests/out/panel-collapsed-open.png" 2>/dev/null)
 eq "opened Needs-you line stays open; one that doesn't need you folds" '["p-wait"]' "$(echo "$outo2" | jq -c 'select(.peekOpen) | .peekOpen')"
-export SPYGLASS_HOME="$TMP/tower"
+export SPYGLASS_HOME="$TMP/spyglass"
 
 # Settings: with "come back when a session needs you" off, a new waiting session doesn't bring the panel back.
 export SPYGLASS_HOME="$TMP/autoshow"; mkdir -p "$SPYGLASS_HOME/sessions"
@@ -262,7 +262,7 @@ session a-later '{"title":"Later","titleSource":"ai","status":"done"}'
 flip=$!
 w=$(SPYGLASS_NO_REGISTRY=1 "$BIN" --selftest --twice --state '{"autoShow":"false"}' 2>/dev/null | jq -c 'select(.wakes) | .wakes'); wait "$flip"
 eq "come back off: no wake" "[]" "$w"
-export SPYGLASS_HOME="$TMP/tower"
+export SPYGLASS_HOME="$TMP/spyglass"
 
 # Welcome card checklist ticks itself off (fake home; which editors are installed is machine-specific, so not asserted).
 WH="$TMP/welcome-home"; mkdir -p "$WH/.claude"

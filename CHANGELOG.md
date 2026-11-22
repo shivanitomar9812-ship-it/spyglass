@@ -2,6 +2,9 @@
 
 All releases so far were made on 2026-11-22. Versions before 0.16.0 were released under the name Tower. Bugs that escaped to a release, and the check that now catches each, are in [HARNESS.md](HARNESS.md).
 
+## 0.22.1
+- Removes the code for moving from the old name (Tower): the migration, the old-name checks in `/spyglass:doctor`, and old-name handling in setup and uninstall.
+
 ## 0.22.0
 - Uses less power: reacts to file changes instead of re-reading everything every second, parses only files that changed, and slows its clock when nothing is working. Idle CPU measured 1.00% → 0.27% under identical conditions.
 - `/spyglass:uninstall`: lists everything Spyglass changed on this Mac, then undoes it after you confirm (statusline, login item, editor extension and tab-title setting, state).

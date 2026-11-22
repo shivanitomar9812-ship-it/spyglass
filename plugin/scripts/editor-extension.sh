@@ -17,7 +17,6 @@ for cli in \
   "$(command -v cursor 2>/dev/null)" "$(command -v code 2>/dev/null)"; do
   [ -n "$cli" ] && [ -x "$cli" ] || continue
   "$cli" --install-extension "$tmp/spyglass-focus.vsix" >/dev/null 2>&1 && { echo "Installed in: $cli"; found=1; }
-  "$cli" --uninstall-extension local.tower-focus >/dev/null 2>&1   # the extension's old name (Tower)
 done
 rm -rf "$tmp"
 [ "$found" = 1 ] || { echo "No Cursor / VS Code / Windsurf found."; exit 1; }

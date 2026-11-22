@@ -30,13 +30,5 @@ out=$(doc --session s1); eq "recent failed action reported" 1 "$(grep -c '1 acti
 eq "panel missing reported" 1 "$(grep -c "panel isn't installed" <<<"$out")"
 eq "statusline not feeding reported" 1 "$(grep -c '/spyglass:setup' <<<"$out")"
 
-# Leftovers from the old name: a real ~/.claude/tower folder or a listed old extension; a lingering folder doesn't count.
-mkdir -p "$H/.claude/tower" "$H/.cursor/extensions/local.tower-focus-0.5.0"
-echo '[{"identifier":{"id":"local.spyglass-focus"}}]' > "$H/.cursor/extensions/extensions.json"
-out=$(doc --session s1)
-eq "old folder flagged" 1 "$(grep -c 'Leftovers.*~/.claude/tower' <<<"$out")"
-eq "uninstalled extension folder not flagged" 0 "$(grep -c 'local.tower-focus' <<<"$out")"
-echo '[{"identifier":{"id":"local.tower-focus"}}]' > "$H/.cursor/extensions/extensions.json"
-out=$(doc --session s1); eq "listed old extension flagged" 1 "$(grep -c 'local.tower-focus' <<<"$out")"
 eq "exit 1 when something needs fixing" 1 "$(doc --session s1 >/dev/null; echo $?)"
 finish

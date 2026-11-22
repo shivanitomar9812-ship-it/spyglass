@@ -30,7 +30,7 @@ feeding() {
   [ -n "$cmd" ] || return 1
   case "$cmd" in *spyglass/statusline.sh*) echo wrapper; return 0 ;; esac
   local file="${cmd%% *}"; file="${file/#\~/$HOME}"; file="${file//\"/}"
-  [ -f "$file" ] && grep -qE '(spyglass|tower)/stats.sh' "$file" && { echo manual; return 0; }
+  [ -f "$file" ] && grep -qE 'spyglass/stats.sh' "$file" && { echo manual; return 0; }
   return 1
 }
 install_scripts() {
