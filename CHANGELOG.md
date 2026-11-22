@@ -2,6 +2,9 @@
 
 All releases so far were made on 2026-11-22. Versions before 0.16.0 were released under the name Tower. Bugs that escaped to a release, and the check that now catches each, are in [HARNESS.md](HARNESS.md).
 
+## 0.20.4
+- Fixed: since 0.17.0, sessions started with the installed plugin lost their activity, prompts, questions and permission answers within a second. The hook took its own process (its path is under `~/.claude`) for Claude's, and the panel then dropped the row as ended. Spyglass now finds each session's process in Claude Code's own session registry.
+
 ## 0.20.3
 - The binary finds your home folder through `$HOME`, like the plugin's scripts, so both always agree on where Spyglass keeps its state.
 

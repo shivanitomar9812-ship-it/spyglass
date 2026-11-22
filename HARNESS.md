@@ -21,6 +21,7 @@ scripts/release.sh 0.10.0 "Subject" ["Body"]   # tests -> universal build -> bum
 
 ## Rules the tests encode
 
+- Hooks are tested **from an installed-plugin path** (under `.claude`), not only from the repo: paths leak into behaviour.
 - Scripts the panel runs are tested **under launchd's PATH** (`launchd` helper in `tests/lib.sh`), never from a shell.
 - No dependencies: plugin scripts never call `jq` or `perl` (`record_test.sh` greps for it); JSON goes through `Spyglass json …`. The statusline wrapper still puts Homebrew on PATH, but only for *your* statusline, which may use it.
 - `send.sh` is tested through `SPYGLASS_SEND_LOG` with a fake Claude that behaves like the real one (writes the transcript, saves the default model, asks "Switch model?" when the conversation is cached).
@@ -63,6 +64,7 @@ Claude Code 2.1.330, `PermissionRequest` hook (2026-11-22):
 | — | Terminal.app `do script` presses Enter after every key: a test drifted from a dialog into settings and vim (found live) | Terminal.app gets text commands only; keys route to "Answer in Terminal ↗"; never type exploratory commands into test sessions |
 | 0.13.0 | README claimed Claude desktop app sessions show in Spyglass; a live test showed they run in the cloud or a sandboxed VM that ignores local plugins (no hooks, no process, no transcript on the Mac) | support claims need a live session per host before they ship; untested hosts are marked untested |
 | 0.16.0 | Names showed Claude Code's status symbol ("✳ TTD channel…") once Cursor tabs show Claude's title | `panel_test.sh` fixture tab name starts with "✳ " |
+| 0.17.0–0.20.3 | **Every new session lost its hook data**: run from the installed plugin (under `~/.claude`), the hook matched its own path as "claude", recorded its own pid, and the panel deleted the row once the hook exited (found from evidence: a 19:25 session with no row) | pid from Claude Code's session registry, exact-name fallback; `record_test.sh` runs the hook from a path under `.claude` |
 | 0.20.2 | The binary found home via the account (ignoring `$HOME`), the scripts via `$HOME`: a fresh-install check wrote a test row into the real `~/.claude/spyglass` (found verifying the public install) | binary uses `$HOME`; `record_test.sh` "hooks follow $HOME" |
 | 0.20.1 (main, ~1 min) | A hand commit shipped a native-only (arm64) binary | CI checks the committed binary is universal (`lipo`) |
 | 0.20.1 (CI) | App names came only from macOS's list of installed apps: on a Mac without Cursor (CI) a row said "com.todesktop.230313mzl4w4u92" | built-in names for known apps; CI on GitHub's macOS runners caught it on its first run |

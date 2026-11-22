@@ -2454,8 +2454,30 @@ enum CLI {
         return SHA256.hash(data: Data(canon.utf8)).map { String(format: "%02x", $0) }.joined().prefix(16).description
     }
 
-    /// Walks up from this process to the claude process: its pid and the first real tty on the way.
-    static func claudeProcess() -> (pid: Int?, tty: String?) {
+    /// The session's claude process: from Claude Code's own registry (~/.claude/sessions/<pid>.json names each session's
+    /// id), else by walking up the process tree. Escaped (0.17-0.20.3): the walk matched "claude" anywhere in a path, and
+    /// the installed hook binary lives under ~/.claude, so it recorded its own pid; the panel then saw that process gone
+    /// and deleted the session's row.
+    static func claudeProcess(_ sid: String) -> (pid: Int?, tty: String?) {
+        let reg = Store.userHome + "/.claude/sessions"
+        for f in (try? FileManager.default.contentsOfDirectory(atPath: reg)) ?? [] where f.hasSuffix(".json") {
+            guard let o = JSON.load(reg + "/" + f) as? [String: Any], (o["sessionId"] as? String) == sid,
+                  let pid = (o["pid"] as? NSNumber)?.intValue, kill(pid_t(pid), 0) == 0 else { continue }
+            return (pid, tty(of: pid))
+        }
+        return walkToClaude()
+    }
+
+    static func tty(of pid: Int) -> String? {
+        var info = kinfo_proc(); var size = MemoryLayout<kinfo_proc>.stride
+        var mib: [Int32] = [CTL_KERN, KERN_PROC, KERN_PROC_PID, Int32(pid)]
+        guard sysctl(&mib, 4, &info, &size, nil, 0) == 0, size > 0, info.kp_eproc.e_tdev != -1,
+              let name = devname(info.kp_eproc.e_tdev, S_IFCHR) else { return nil }
+        return "/dev/" + String(cString: name)
+    }
+
+    /// Fallback: walk up from this hook's parent to a process named exactly "claude" (or a claude/versions binary).
+    static func walkToClaude() -> (pid: Int?, tty: String?) {
         let p = Process()
         p.executableURL = URL(fileURLWithPath: "/bin/ps")
         p.arguments = ["-axo", "pid=,ppid=,tty=,comm="]
@@ -2468,11 +2490,11 @@ enum CLI {
             guard f.count >= 4, let pid = Int(f[0]), let pp = Int(f[1]) else { continue }
             parent[pid] = pp; tty[pid] = String(f[2]); comm[pid] = String(f[3])
         }
-        var cur = Int(getpid()), foundTTY: String? = nil
+        var cur = Int(getppid()), foundTTY: String? = nil   // not this process: its own path may contain .claude
         for _ in 0..<64 {
             guard cur > 1 else { break }
             if foundTTY == nil, let t = tty[cur], t != "??" { foundTTY = "/dev/" + t }
-            if let c = comm[cur], c.contains("claude") { return (cur, foundTTY) }
+            if let c = comm[cur], (c as NSString).lastPathComponent == "claude" || c.contains("/claude/versions/") { return (cur, foundTTY) }
             guard let pp = parent[cur] else { break }
             cur = pp
         }
@@ -2590,7 +2612,7 @@ enum CLI {
 
         // Where it lives (once per session, refreshed on each prompt).
         if old.isEmpty || ev == "SessionStart" || ev == "UserPromptSubmit" {
-            let (pid, tty) = claudeProcess()
+            let (pid, tty) = claudeProcess(sid)
             if let pid { o["pid"] = pid }
             if let tty { o["tty"] = tty }
         }
