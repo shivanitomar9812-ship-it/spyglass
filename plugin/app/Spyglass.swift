@@ -230,7 +230,7 @@ final class Store: ObservableObject {
     private let dir = Store.home.appendingPathComponent("sessions")
     static let home: URL = {
         if let h = ProcessInfo.processInfo.environment["SPYGLASS_HOME"], !h.isEmpty { return URL(fileURLWithPath: h) }
-        return FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".claude/spyglass")
+        return URL(fileURLWithPath: Store.userHome).appendingPathComponent(".claude/spyglass")   // $HOME, like the scripts
     }()
     private var timer: Timer?
 
@@ -2361,7 +2361,7 @@ enum JSON {
 enum CLI {
     static var home: String {
         ProcessInfo.processInfo.environment["SPYGLASS_HOME"].flatMap { $0.isEmpty ? nil : $0 }
-            ?? (NSHomeDirectory() + "/.claude/spyglass")
+            ?? (Store.userHome + "/.claude/spyglass")   // $HOME, like the shell scripts (NSHomeDirectory ignores it)
     }
     static var now: Int { Int(Date().timeIntervalSince1970) }
     static func env(_ k: String) -> String { ProcessInfo.processInfo.environment[k] ?? "" }
