@@ -166,6 +166,18 @@ eq "old-hook Terminal prompt: jump only" "false" "$(SPYGLASS_NO_REGISTRY=1 "$BIN
 SPYGLASS_NO_REGISTRY=1 "$BIN" --snapshot "$ROOT/tests/out/panel-hosts.png" 2>/dev/null
 export SPYGLASS_HOME="$TMP/spyglass"
 
+# Collapsed panel: a session that just finished (the chime) shows under the header, after the ones that need you.
+# Escaped (0.18.0): collapsed, the chime played but nothing showed which session it was.
+export SPYGLASS_HOME="$TMP/peek"; mkdir -p "$SPYGLASS_HOME/sessions"
+session p-work '{"title":"Finishing soon","titleSource":"ai","status":"working","activity":"Running tests"}'
+session p-wait '{"title":"Needs approval","titleSource":"ai","status":"waiting","permission":{"tool":"Bash","detail":"make","at":1,"key":"k"}}'
+session p-old  '{"title":"Done long ago","titleSource":"ai","status":"done"}'
+( sleep 0.5; f="$SPYGLASS_HOME/sessions/p-work.json"; jq '.status = "done" | .activity = "Finished — ready for you"' "$f" > "$f.t" && mv "$f.t" "$f" ) &
+flip=$!
+outp=$(SPYGLASS_NO_REGISTRY=1 "$BIN" --selftest --twice --state '{"collapsed":"true"}' --snapshot "$ROOT/tests/out/panel-collapsed.png" 2>/dev/null); wait "$flip"
+eq "collapsed: needs-you first, then what just finished; older done rows stay hidden" '["p-wait","p-work"]' "$(echo "$outp" | jq -c 'select(.peek) | .peek')"
+export SPYGLASS_HOME="$TMP/tower"
+
 # Welcome card checklist ticks itself off (fake home; which editors are installed is machine-specific, so not asserted).
 WH="$TMP/welcome-home"; mkdir -p "$WH/.claude"
 setup_of() { HOME="$WH" SPYGLASS_HOME="$WH/.claude/spyglass" SPYGLASS_NO_REGISTRY=1 "$BIN" --selftest 2>/dev/null | jq -c 'select(.setup) | .setup | {stats, extension}'; }

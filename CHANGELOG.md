@@ -2,6 +2,9 @@
 
 All releases so far were made on 2026-11-22. Versions before 0.16.0 were released under the name Tower. Bugs that escaped to a release, and the check that now catches each, are in [HARNESS.md](HARNESS.md).
 
+## 0.19.0
+- Collapsed, the panel lists the sessions that need you and the ones that just finished (the chime), one line each with why ("Needs you", "Done · 2m"); click to jump. A finished session drops off once you jump to it, give it a new prompt, or after 15 minutes.
+
 ## 0.18.0
 - A turn that ends by asking you something in plain text ("Shall I go ahead?") now shows as **Needs you**, with the question on the row and a jump to reply. It used to show as Done.
 - First-run welcome card: what Spyglass is, and a setup checklist that ticks itself off (`/spyglass:setup`, the editor extension, the macOS permission note). "Show welcome" in the menu bar brings it back.

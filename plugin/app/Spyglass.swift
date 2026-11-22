@@ -521,6 +521,7 @@ final class Store: ObservableObject {
         for s in out where lastState[s.id] != nil && lastState[s.id] != s.state {
             if !muted, s.state == "waiting" { NSSound(named: "Ping")?.play() }
             if !muted, s.state == "done" { NSSound(named: "Glass")?.play() }
+            if s.state == "done" { justDone[s.id] = now }   // shown under a collapsed header until seen
         }
         // A session newly needs you (or one already does when Spyglass starts): bring a hidden panel back.
         // The Store's first reload runs before the app sets onNeedsYou, so "already waiting at start" counts from then.
@@ -530,6 +531,9 @@ final class Store: ObservableObject {
             if let first = out.first(where: { $0.state == "waiting" && prev[$0.id] != "waiting" }) { wake(first) }
         }
         lastState = Dictionary(uniqueKeysWithValues: out.map { ($0.id, $0.state) })
+        // Forget a finished session once it moves on (new prompt), disappears, or after 15 minutes.
+        let pruned = justDone.filter { id, at in now - at < Store.justDoneFor && out.contains { $0.id == id && $0.state == "done" } }
+        if pruned != justDone { justDone = pruned }
         checkContext(out)
         if out != sessions { sessions = out }
         resolveSwitches(out, now: now)
@@ -1010,6 +1014,18 @@ final class Store: ObservableObject {
 
     func hide(_ s: Session) { hidden[s.id] = s.updated ?? 0; reload() }
     var onHidePanel: (() -> Void)?
+    /// Sessions that just finished (the chime), by id -> when. Collapsed, the panel lists them so you see which one rang.
+    @Published var justDone: [String: Double] = [:]
+    static let justDoneFor: Double = 15 * 60
+
+    /// Collapsed view: sessions that need you, then the ones that just finished (newest first).
+    var peek: [Session] {
+        let now = Date().timeIntervalSince1970
+        let waiting = sessions.filter { $0.state == "waiting" }
+        let done = sessions.filter { s in s.state == "done" && justDone[s.id].map { now - $0 < Store.justDoneFor } == true }
+            .sorted { (justDone[$0.id] ?? 0) > (justDone[$1.id] ?? 0) }
+        return Array((waiting + done).prefix(5))
+    }
     /// Called when a session newly needs you; the app shows a hidden panel.
     var onNeedsYou: ((Session) -> Void)?
     private var wakePrimed = false
@@ -1041,6 +1057,7 @@ final class Store: ObservableObject {
     func toggleCollapse() { collapsed.toggle(); UserDefaults.standard.set(collapsed, forKey: "collapsed") }
 
     func jump(_ s: Session) {
+        justDone[s.id] = nil   // seen
         let script = Store.home.appendingPathComponent("focus.sh").path
         let p = Process()
         p.executableURL = URL(fileURLWithPath: "/bin/bash")
@@ -1519,9 +1536,15 @@ struct UsageLine: View {
 struct CompactRow: View {
     let s: Session
     @ObservedObject var store: Store
+    var why = false   // collapsed list: say why the row is shown (Needs you / Done · 2m) instead of model and context
     @State private var hover = false
     var dot: Color {
-        switch s.state { case "working": return accent; case "done": return accent.opacity(0.45); default: return .gray.opacity(0.6) }
+        switch s.state {
+        case "working": return accent
+        case "done": return accent.opacity(0.45)
+        case "waiting": return .orange
+        default: return .gray.opacity(0.6)
+        }
     }
     var body: some View {
         HStack(spacing: 8) {
@@ -1530,12 +1553,23 @@ struct CompactRow: View {
             Text(s.displayTitle).font(.system(size: 12, weight: .semibold)).foregroundColor(.white.opacity(0.9))
                 .lineLimit(1).truncationMode(.tail).layoutPriority(0)
             Spacer(minLength: 4)
+            if why {
+                Group {
+                    if s.state == "waiting" { Text("Needs you").foregroundColor(.orange) }
+                    else {
+                        let secs = Date().timeIntervalSince1970 - (store.justDone[s.id] ?? Date().timeIntervalSince1970)
+                        Text(secs < 60 ? "Done · just now" : "Done · \(Store.ago(store.justDone[s.id]) ?? "")").foregroundColor(accent)
+                    }
+                }
+                .font(.system(size: 10.5, weight: .semibold)).fixedSize()
+            } else {
             Group {
                 if let m = s.model { Text(m.components(separatedBy: " ").first ?? m).foregroundColor(Color(red: 0.45, green: 0.80, blue: 0.90)) }
                 if let c = s.ctx { Text("\(c)%").foregroundColor(c >= 60 ? .yellow : .green).tip(store.contextHelp(s) ?? "") }
                 if let u = store.usageLabel(s) { Text(u).foregroundColor(.white.opacity(0.45)).tip(store.usageHelp(s)) }
             }
             .font(.system(size: 10.5, weight: .semibold)).fixedSize().layoutPriority(1)
+            }
             if hover {
                 IconButton(symbol: "arrow.up.forward.square", help: "Jump to \(store.terminalLabel(s))") { store.jump(s) }
             }
@@ -1645,6 +1679,12 @@ struct SpyglassView: View {
             }
             if store.showWelcome && !store.collapsed { WelcomeCard(store: store) }
             if !store.limits.isEmpty { UsageLine(limits: store.limits) }
+            if store.collapsed && !store.peek.isEmpty {
+                // Collapsed: still show which session just rang or needs you; click to jump (and clear it).
+                VStack(alignment: .leading, spacing: 2) {
+                    ForEach(store.peek) { CompactRow(s: $0, store: store, why: true) }
+                }
+            }
             if !store.collapsed {
                 if store.sessions.isEmpty {
                     Text("No recent Claude sessions").font(.system(size: 12))
@@ -1943,6 +1983,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             if k == "editing" { store.editing = v }
             if k == "compact" { store.compact = v == "true" }
             if k == "welcome" { store.showWelcome = v == "true" }
+            if k == "collapsed" { store.collapsed = v == "true" }
         }
     }
     var wakes: [String] = []
@@ -1958,6 +1999,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
     if args.contains("--selftest") {
         if let d = try? JSONSerialization.data(withJSONObject: ["wakes": wakes]) { print(String(data: d, encoding: .utf8)!) }
+        if let d = try? JSONSerialization.data(withJSONObject: ["peek": store.peek.map(\.id)]) { print(String(data: d, encoding: .utf8)!) }
         for s in store.sessions {
             var row: [String: Any] = ["id": s.id, "name": s.displayTitle, "state": s.state, "contextFull": s.contextFull,
                                       "canRename": store.canRename(s)]

@@ -16,6 +16,7 @@ Running several Claude Code sessions at once? Spyglass keeps a small always-on-t
 - **Usage that fits your plan**: on a subscription, the header shows how much of the 5-hour and weekly limits is left and when they renew, and rows show tokens used. On an API key, rows show $. Past a limit, the header says extra usage is billed at API prices (if it's on) and rows show the $ added since. Behind a spend-capped Claude gateway, the header shows the spend
 - **Hover for context**: how long it has been working or waiting, last prompt, folder and branch, model, context, tokens, and which tab it lives in
 - **Compact view**: one line per session, grouped by repo; rows that need you stay full size
+- **Collapsed, it still tells you what rang**: under the header, one line for each session that needs you or just finished; click to jump
 - **Recently ended**: sessions that ended in the last 24 hours (`/exit`, a crash, a closed terminal), with **Resume**
 - **Every session shows up**, including ones started before Spyglass was installed (read from Claude Code's own session registry)
 
