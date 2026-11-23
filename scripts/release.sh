@@ -27,7 +27,7 @@ msg="$subject"; [ -n "$body" ] && msg="$subject
 $body"
 git commit -q -m "$msg
 
-Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
+Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>"
 git log --oneline -1
 [ "${SPYGLASS_NO_PUSH:-}" = 1 ] && { echo "SPYGLASS_NO_PUSH=1: stopping before push."; exit 0; }
 
