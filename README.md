@@ -8,6 +8,8 @@ Running several Claude Code sessions at once? Spyglass keeps a small always-on-t
 
 <p align="center"><img src="demo/spyglass-demo.gif" alt="Spyglass: sessions working, a permission prompt allowed from the panel, a question answered by picking an option, a model switch with a confirm, a finished session, a context warning, an ended session with Resume, the compact view, and the collapsed view where a waiting question is answered in place" width="560"></p>
 
+<p align="center"><a href="demo/spyglass-demo.mp4">Watch the 25-second video</a></p>
+
 ## What it shows
 
 - 🟢 **Working**: live activity ("Running kubectl get pods", "Editing api.ts"), `3/5 steps` on a task list, elapsed time otherwise
