@@ -2,6 +2,10 @@
 
 All releases so far were made on 2026-11-22. Versions before 0.16.0 were released under the name Tower. Bugs that escaped to a release, and the check that now catches each, are in [HARNESS.md](HARNESS.md).
 
+## 0.27.0
+- A lock in the header turns Allow from the panel on and off in one click: open = on, closed (orange) = off, so it's always visible which mode you're in.
+- The title no longer wraps when the collapsed header is tight; the status text gives way instead.
+
 ## 0.26.0
 - Turn off a built-in risky rule: add `!` and its name, as the card shows it, in ⚙ → Risky commands… (e.g. `!pushes to a remote`; force-push stays flagged). The file lists every built-in rule name, and a risky card's hover text says how to turn its rule off.
 

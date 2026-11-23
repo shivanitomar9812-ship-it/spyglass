@@ -72,6 +72,7 @@ struct ArcEye: Shape {
 struct IconButton: View {
     let symbol: String
     let help: String
+    var tint: Color = .white.opacity(0.75)
     let action: () -> Void
     @State private var hover = false
     var body: some View {
@@ -81,7 +82,7 @@ struct IconButton: View {
                 .background(hover ? Color.white.opacity(0.12) : Color.clear)
                 .clipShape(RoundedRectangle(cornerRadius: 5))
         }
-        .buttonStyle(.plain).foregroundColor(.white.opacity(0.75)).tip(help)
+        .buttonStyle(.plain).foregroundColor(tint).tip(help)
         .onHover { hover = $0 }
     }
 }
@@ -694,13 +695,19 @@ struct SpyglassView: View {
             HStack(spacing: 8) {
                 Circle().fill(store.sessions.contains { $0.state == "waiting" } ? Color.orange : accent)
                     .frame(width: 8, height: 8)
-                Text("Spyglass").font(.system(size: 15, weight: .bold)).foregroundColor(.white)
-                Text("\(store.sessions.count)").font(.system(size: 15, weight: .bold)).foregroundColor(.white.opacity(0.4))
-                if store.collapsed && !counts.isEmpty {
-                    Text(counts).font(.system(size: 11)).foregroundColor(.white.opacity(0.6)).lineLimit(1)
+                Text("Spyglass").font(.system(size: 15, weight: .bold)).foregroundColor(.white).fixedSize()
+                Text("\(store.sessions.count)").font(.system(size: 15, weight: .bold)).foregroundColor(.white.opacity(0.4)).fixedSize()
+                if store.collapsed && !counts.isEmpty {   // gives way first when the header is tight
+                    Text(counts).font(.system(size: 11)).foregroundColor(.white.opacity(0.6)).lineLimit(1).layoutPriority(-1)
                 }
                 Spacer()
                 SettingsMenu(store: store)
+                // Allow from the panel: open lock = on; closed (orange) = off, every prompt answered in its tab.
+                IconButton(symbol: store.panelAllow ? "lock.open" : "lock.fill",
+                           help: store.panelAllow
+                               ? "Allow from the panel is on. Click to turn it off: prompts then offer only Go to tab or Deny"
+                               : "Allow from the panel is off: prompts offer only Go to tab or Deny. Click to turn it back on",
+                           tint: store.panelAllow ? .white.opacity(0.75) : .orange) { store.setPanelAllow(!store.panelAllow) }
                 IconButton(symbol: store.compact ? "rectangle.grid.1x2" : "list.bullet",
                            help: store.compact ? "Full rows" : "Compact view") { store.toggleCompact() }
                 IconButton(symbol: store.muted ? "speaker.slash" : "speaker.wave.2",
