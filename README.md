@@ -137,7 +137,7 @@ Step away from the Mac and still unblock your sessions. With away mode on, a per
 
 1. Create a bot: message @BotFather in Telegram, `/newbot`, copy the token.
 2. In Claude Code run `/spyglass:away setup` and follow it: it has you run `! "$HOME/.claude/spyglass/Spyglass" away setup` yourself, so the token is typed hidden and never enters a Claude conversation. Message your new bot once so Spyglass learns your chat.
-3. Switch it on with the paper-plane button in the panel header, or `Spyglass away on`. By default it also turns itself on when the screen locks or after 10 idle minutes, and off when you're back.
+3. Switch it on with the **Away mode** switch in ⚙, or `Spyglass away on`. By default it also turns itself on when the screen locks or after 10 idle minutes, and off when you're back.
 
 It follows the same rules as the panel: risky commands get no Allow (only Deny), the header lock turns Allow off for the phone too, a button works only for the prompt it was sent for and for one hour, and only your chat can answer. Settings in `~/.claude/spyglass/away.json`: `"finished": true` also pings when a session finishes, `"auto": false` turns the automatic switch off, `"idle_minutes"`. Telegram bot chats aren't end-to-end encrypted: see [SECURITY.md](SECURITY.md).
 

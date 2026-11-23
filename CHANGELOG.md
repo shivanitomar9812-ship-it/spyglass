@@ -2,9 +2,12 @@
 
 All releases so far were made on 2026-11-22. Versions before 0.16.0 were released under the name Tower. Bugs that escaped to a release, and the check that now catches each, are in [HARNESS.md](HARNESS.md).
 
+## 0.32.1
+- Fix: Remote Control couldn't be turned off for a session whose hooks had gone quiet (Spyglass read its stale hook status, "working" for hours, instead of Claude Code's registry). The away-mode button left the header; its switch is in ⚙ → Away.
+
 ## 0.32.0
 - Remote Control per row: a phone icon on every row shows whether that session is connected to Remote Control (read from Claude Code's session registry) and connects or disconnects it with a click, for idle or finished sessions. Connecting types `/remote-control`. Disconnecting is a menu in Claude Code: in iTerm2 Spyglass opens it and picks "Disconnect this session", pressing keys only while that menu is on screen; in Cursor / VS Code and Terminal it opens the menu and the row says to pick Disconnect (no blind keys, which could re-send an old prompt).
-- The away-mode header button is a paper plane now, so it isn't mistaken for Remote Control's phone.
+- The away-mode switch moved from the header into ⚙ → Away, so the header has no look-alike of Remote Control's phone icon.
 
 ## 0.31.0
 - Away mode: with the paper-plane button in the header (or `Spyglass away on`, or automatically on screen lock / idle), permission prompts, questions and plain-text asks go to a private Telegram chat, and Allow once / Deny buttons there answer permission prompts. Risky commands and the Allow lock still mean no Allow; only your chat can answer; buttons expire after an hour. Set up with `/spyglass:away setup` (the token is typed hidden in your own terminal). Off until set up; Spyglass makes no network calls otherwise.
