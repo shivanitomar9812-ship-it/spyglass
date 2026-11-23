@@ -2,6 +2,9 @@
 
 All releases so far were made on 2026-11-22. Versions before 0.16.0 were released under the name Tower. Bugs that escaped to a release, and the check that now catches each, are in [HARNESS.md](HARNESS.md).
 
+## 0.28.0
+- A row always shows its terminal tab's name. Before, a session renamed earlier kept that name after you renamed its Cursor / VS Code tab, so the two disagreed. (Renaming from Spyglass renames the tab too, so they stay the same.)
+
 ## 0.27.1
 - Fix: the lock's hover text didn't change after a click (it kept saying Allow is on). Hover cards now refresh in place when their text changes.
 

@@ -13,7 +13,7 @@ Running several Claude Code sessions at once? Spyglass keeps a small always-on-t
 - 🟢 **Working**: live activity ("Running kubectl get pods", "Editing api.ts"), `3/5 steps` on a task list, elapsed time otherwise
 - 🟠 **Needs you**: permission prompts and questions float to the top with an orange outline, including a turn that simply ends by asking you something ("Shall I go ahead?")
 - ✅ **Done**: finished turns, ready for your next prompt
-- **Names you recognise**: your `/rename`, else the name you gave the Cursor / VS Code tab, else Claude's own title
+- **Names you recognise**: the same name as the session's Cursor / VS Code tab, else your `/rename`, else Claude's own title
 - **Model and context** on every row; at 85% context the row turns red, with one sound, so you can `/compact` first
 - **Usage that fits your plan**: on a subscription, the header shows how much of the 5-hour and weekly limits is left and when they renew, and rows show tokens used. On an API key, rows show $. Past a limit, the header says extra usage is billed at API prices (if it's on) and rows show the $ added since. Behind a spend-capped Claude gateway, the header shows the spend
 - **Last line**: finished rows preview the last line of Claude's reply

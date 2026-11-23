@@ -49,7 +49,8 @@ row() { echo "$out" | jq -r --arg id "$1" "select(.id == \$id) | $2"; }
 eq "idle reminder shows done" "done" "$(row idle .state)"
 # Escaped bug (0.16.0): Claude Code's status symbol in tab titles ("✳ Seg Lifecycle") showed in names.
 eq "Cursor tab name used, status symbol stripped" "Seg Lifecycle" "$(row tab .name)"
-eq "/rename beats tab name" "My rename" "$(row custom .name)"
+# Escaped (0.27.1): a session renamed "Tower" kept that name after its Cursor tab was renamed "Spyglass".
+eq "the tab's name wins over an older rename" "Some tab" "$(row custom .name)"
 # Escaped bug (0.9.0): "2.1.330" (Claude Code's process title) was taken as a name you gave the tab.
 eq "version tab name ignored" "Platform listing famous repositories" "$(row ver .name)"
 eq "context warning at 91%" "true" "$(row ctx .contextFull)"

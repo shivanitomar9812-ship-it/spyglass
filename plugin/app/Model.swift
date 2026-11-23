@@ -43,9 +43,10 @@ struct Session: Identifiable, Codable, Equatable {
     var titleSource: String?     // "custom" (/rename), "ai", "prompt"
     var tabName: String?         // the name you gave its Cursor / VS Code terminal tab
     /// Your /rename wins, then the Cursor tab name you gave it, then Claude's auto title.
+    /// The row shows what the tab shows. A rename from Spyglass renames the tab too, so they stay the same.
     var displayTitle: String {
-        if titleSource == "custom", let t = title, !t.isEmpty { return t }
         if let n = tabName, !n.isEmpty { return n }
+        if titleSource == "custom", let t = title, !t.isEmpty { return t }
         if let t = title, !t.isEmpty { return t }
         return (cwd as NSString?)?.lastPathComponent ?? "Claude session"
     }
