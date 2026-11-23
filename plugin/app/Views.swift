@@ -117,7 +117,10 @@ struct NameField: View {
         } else {
             HStack(spacing: 4) {
                 Text(s.displayTitle).font(.system(size: 13, weight: .bold)).foregroundColor(.white).lineLimit(1)
-                if s.hooksMissing == true {
+                if s.hooksQuiet != nil {
+                    Image(systemName: "exclamationmark.triangle.fill").font(.system(size: 9, weight: .semibold)).foregroundColor(.orange)
+                        .tip("No updates from this session's hooks for a while, so its status may be old. Restart it (claude --resume).")
+                } else if s.hooksMissing == true {
                     Image(systemName: "exclamationmark.triangle.fill").font(.system(size: 9, weight: .semibold)).foregroundColor(.orange)
                         .tip("Hooks aren't reporting for this session, so Spyglass only sees its basic status. Run /spyglass:doctor in it.")
                 } else if store.oldHooks(s) {

@@ -68,6 +68,7 @@ import SwiftUI
             row["model"] = s.model; row["ctx"] = s.ctx; row["tabName"] = s.tabName
             row["permission"] = s.permission?.detail; row["risky"] = s.permission?.riskReason
             row["asked"] = s.asked?.text
+            row["prompt"] = s.prompt; row["hooksQuiet"] = s.hooksQuiet != nil
             row["lastLine"] = s.lastLine; row["oldHooks"] = store.oldHooks(s); row["hooksMissing"] = s.hooksMissing ?? false
             if s.asked != nil { row["canReply"] = store.canReply(s); row["yesNo"] = Store.isYesNo(s.asked!.text) }
             row["canAnswer"] = s.permission != nil ? store.canAnswerPermission(s) : nil

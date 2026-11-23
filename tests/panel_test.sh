@@ -259,6 +259,39 @@ session w-done '{"title":"Done","titleSource":"ai","status":"done"}'
 eq "⌃⌥J picks the longest wait" "w-old" "$(SPYGLASS_NO_REGISTRY=1 "$BIN" --selftest 2>/dev/null | jq -r 'select(.longestWaiting) | .longestWaiting')"
 export SPYGLASS_HOME="$TMP/spyglass"
 
+# Hooks gone quiet: the conversation moved on but the hooks didn't report (a session running a removed plugin's hooks).
+# Escaped (0.29.0): such a row kept "working" and showed yesterday's prompt on hover.
+export SPYGLASS_HOME="$TMP/quiet"; mkdir -p "$SPYGLASS_HOME/sessions"
+session q-dead '{"title":"Dead hooks","titleSource":"ai","status":"working","activity":"Old activity","prompt":"yesterday prompt","updated":'$((now - 90000))'}'
+session q-slow '{"title":"Long step","titleSource":"ai","status":"working","activity":"Running agent","prompt":"current","updated":'$((now - 400))'}'
+session q-fine '{"title":"Healthy","titleSource":"ai","status":"working","activity":"Editing","prompt":"healthy prompt","updated":'$((now - 30))'}'
+ts=$(date -u +%Y-%m-%dT%H:%M:%S.000Z)
+for id in q-dead q-slow q-fine; do
+  { echo '{"type":"user","timestamp":"'$ts'","message":{"content":"the real latest prompt"}}'
+    echo '{"type":"assistant","timestamp":"'$ts'","message":{"content":[{"type":"text","text":"ok"}]}}'
+    echo '{"type":"user","timestamp":"'$ts'","message":{"content":[{"type":"tool_result","content":"output"}]}}'
+    echo '{"type":"user","isMeta":true,"message":{"content":"meta"}}'
+    echo '{"type":"user","timestamp":"'$ts'","message":{"content":"<command-name>/model</command-name>"}}'; } > "$SPYGLASS_CLAUDE_DIR/projects/-tmp-repo/$id.jsonl"
+done
+# A finished session: its last message is old, but Claude Code wrote an away summary (and touched the file) later.
+session q-done '{"title":"Finished","titleSource":"ai","status":"done","prompt":"done prompt","updated":'$((now - 3600))'}'
+old=$(date -u -r $((now - 3600)) +%Y-%m-%dT%H:%M:%S.000Z)
+{ echo '{"type":"user","timestamp":"'$old'","message":{"content":"done prompt"}}'
+  echo '{"type":"system","subtype":"away_summary","timestamp":"'$ts'","content":"x"}'; } > "$SPYGLASS_CLAUDE_DIR/projects/-tmp-repo/q-done.jsonl"
+outq=$(SPYGLASS_NO_REGISTRY=1 "$BIN" --selftest 2>/dev/null)
+rq() { echo "$outq" | jq -r --arg id "$1" "select(.id == \$id) | $2"; }
+eq "quiet hooks flagged" "true" "$(rq q-dead .hooksQuiet)"
+eq "last prompt read from the conversation" "the real latest prompt" "$(rq q-dead .prompt)"
+eq "quiet for a day: no longer 'working'" "idle" "$(rq q-dead .state)"
+# Found before release: flipping it to idle hid a live session under "older idle" (no hook update in 12 h).
+eq "a live conversation keeps its row" "1" "$(echo "$outq" | jq -r 'select(.id == "q-dead") | .id' | wc -l | tr -d ' ')"
+eq "quiet 7 min (a long step): flagged but still working" "true|working" "$(rq q-slow '"\(.hooksQuiet)|\(.state)"')"
+eq "healthy session untouched" "false|healthy prompt|working" "$(rq q-fine '"\(.hooksQuiet)|\(.prompt)|\(.state)"')"
+# Found before release: an away summary written after a finished turn made every idle session look quiet.
+eq "bookkeeping after the last message isn't activity" "false|done" "$(rq q-done '"\(.hooksQuiet)|\(.state)"')"
+eq "hover explains it" 1 "$(rq q-dead .hover | grep -c "No updates from this session's hooks")"
+export SPYGLASS_HOME="$TMP/spyglass"
+
 # Waiting on you: counted from when the prompt appeared; kept (waits.json) once answered.
 export SPYGLASS_HOME="$TMP/waits"; mkdir -p "$SPYGLASS_HOME/sessions"
 session wt '{"title":"Waits","titleSource":"ai","status":"waiting","permission":{"tool":"Bash","detail":"x","at":'$((now - 300))',"key":"k"}}'

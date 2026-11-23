@@ -2,6 +2,9 @@
 
 All releases so far were made on 2026-11-22. Versions before 0.16.0 were released under the name Tower. Bugs that escaped to a release, and the check that now catches each, are in [HARNESS.md](HARNESS.md).
 
+## 0.30.0
+- Sessions whose hooks stopped reporting (for example, a session still running a removed plugin's hooks) no longer look current: if messages keep coming 5+ minutes after the last report, the row gets a ⚠︎, its hover reads the last prompt from the conversation and says since when it's been quiet, and after 30 minutes it stops claiming "working". The check uses message timestamps, so Claude Code's after-turn bookkeeping (away summaries) doesn't count as activity.
+
 ## 0.29.0
 - Search: with 5 or more sessions, a field above the list filters rows (and recently ended sessions) by tab name, folder, model or current activity. Several words narrow it; Esc clears. If the search hides sessions that need you, an orange line says so, with one click to show them.
 

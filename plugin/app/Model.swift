@@ -29,6 +29,7 @@ struct Session: Identifiable, Codable, Equatable {
     var lastLine: String?        // last line of Claude's final reply (finished turns)
     var hooks: String?           // Spyglass version of the hooks this session runs
     var hooksMissing: Bool?      // started after this Spyglass was installed, yet no hook data: something is broken
+    var hooksQuiet: Double?      // its hooks stopped reporting (last report at this time) while the conversation went on
     var entrypoint: String?      // cli, claude-vscode (extension panel), claude-desktop, claude-code-jetbrains-plugin
     var ended: Double?           // set on entries in ended/ (sessions offered for Resume)
     var model: String?           // from stats/<id>.json (statusline), not the hooks

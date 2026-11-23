@@ -237,6 +237,42 @@ final class Store: ObservableObject {
         seenPaths.removeAll(keepingCapacity: true)
     }
 
+    private var reportedQuiet: Set<String> = []
+    static let quietAfter: Double = 300, quietStale: Double = 1800
+    private var activity: [String: (modified: Double, prompt: String?, last: Double?)] = [:]
+    private static let isoFrac: ISO8601DateFormatter = { let f = ISO8601DateFormatter(); f.formatOptions = [.withInternetDateTime, .withFractionalSeconds]; return f }()
+    private static let iso = ISO8601DateFormatter()
+    /// From a transcript's tail: your latest message, and when the latest message (yours or Claude's) was written.
+    /// Re-read only when the file changed.
+    private func transcriptActivity(_ url: URL, modified: Double) -> (prompt: String?, last: Double?)? {
+        if let c = activity[url.path], c.modified == modified { return (c.prompt, c.last) }
+        var found: String? = nil, last: Double? = nil
+        if let fh = try? FileHandle(forReadingFrom: url) {
+            defer { try? fh.close() }
+            let size = (try? fh.seekToEnd()) ?? 0
+            try? fh.seek(toOffset: size > 524_288 ? size - 524_288 : 0)
+            if let data = try? fh.readToEnd(), let text = String(data: data, encoding: .utf8) {
+                for line in text.split(separator: "\n").reversed()
+                where line.contains("\"type\":\"user\"") || line.contains("\"type\":\"assistant\"") {
+                    guard let o = try? JSONSerialization.jsonObject(with: Data(line.utf8)) as? [String: Any],
+                          (o["isMeta"] as? Bool) != true else { continue }
+                    if last == nil, let ts = o["timestamp"] as? String,
+                       let d = Store.isoFrac.date(from: ts) ?? Store.iso.date(from: ts) { last = d.timeIntervalSince1970 }
+                    guard (o["type"] as? String) == "user" else { continue }
+                    var t: String? = JSON.get(o, ".message.content") as? String
+                    if t == nil, let parts = JSON.get(o, ".message.content") as? [[String: Any]] {
+                        t = parts.first { ($0["type"] as? String) == "text" }?["text"] as? String   // tool results have no text part
+                    }
+                    guard let p = t?.trimmingCharacters(in: .whitespacesAndNewlines), !p.isEmpty,
+                          !p.hasPrefix("<"), !p.hasPrefix("[Request interrupted") else { continue }   // command echoes, interrupts
+                    found = CLI.cut(CLI.oneLine(p), 120); break
+                }
+            }
+        }
+        activity[url.path] = (modified, found, last)
+        return (found, last)
+    }
+
     private var transcriptMisses: [String: Double] = [:]   // no transcript found: look again after a minute
     private func transcriptURL(_ sid: String, cwd: String?) -> URL? {
         if let u = transcriptPaths[sid] { return u }
@@ -352,6 +388,26 @@ final class Store: ObservableObject {
                 s.asked = q; s.status = "waiting"; s.activity = "Asked you: " + CLI.cut(q.text, 70)
                 merged[id] = s
             }
+        }
+
+        // Hooks gone quiet: messages kept coming 5+ minutes after the last hook report (e.g. a session still running hooks
+        // from a plugin since removed). Its record is stale: take the last prompt from the transcript; after 30 minutes (no
+        // single step is that quiet) stop claiming it's "working" on whatever it was doing then.
+        // Message timestamps, not the file's: Claude Code writes bookkeeping (away summaries…) long after a turn ends.
+        for (id, var s) in merged where s.source != "registry" {
+            guard let upd = s.updated, let url = transcriptURL(s.id, cwd: s.cwd),
+                  let m = (try? FileManager.default.attributesOfItem(atPath: url.path))?[.modificationDate] as? Date,
+                  m.timeIntervalSince1970 - upd > Store.quietAfter,
+                  let act = transcriptActivity(url, modified: m.timeIntervalSince1970), let last = act.last,
+                  last - upd > Store.quietAfter else { continue }
+            s.hooksQuiet = upd
+            s.updated = last   // the conversation is what's active: never tuck a live session away as "older idle"
+            if let p = act.prompt { s.prompt = p }
+            if s.state == "working", last - upd > Store.quietStale {
+                s.status = "idle"; s.activity = "No updates from its hooks: restart it (claude --resume)"
+            }
+            merged[id] = s
+            if !reportedQuiet.contains(id) { reportedQuiet.insert(id); onLog?("hooks went quiet: \(s.displayTitle) (\(id))") }
         }
 
         // Sessions that vanished since the last reload (terminal closed, crash) are kept for Resume.
@@ -843,6 +899,9 @@ final class Store: ObservableObject {
         t.append("in \(terminalLabel(s))")
         lines.append(t.joined(separator: " "))
         if s.hooksMissing == true { lines.append("⚠︎ Hooks aren't reporting for this session: run /spyglass:doctor in it") }
+        if let q = s.hooksQuiet {
+            lines.append("⚠︎ No updates from this session's hooks since \(Store.clock(q) ?? "a while ago"), so its status may be old (last prompt is read from the conversation). Restart it (claude --resume)")
+        }
         if oldHooks(s) { lines.append("Runs older Spyglass hooks\(s.hooks.map { " (\($0))" } ?? ""): restart it (claude --resume) for the newest features") }
         return lines.joined(separator: "\n")
     }
