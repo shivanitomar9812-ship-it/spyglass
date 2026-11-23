@@ -89,6 +89,13 @@ import SwiftUI
         print("{\"setup\":{\"stats\":\(st.stats),\"editors\":\"\(st.editors.joined(separator: ","))\",\"extension\":\(st.editorExtension)}}")
         print("{\"overLimit\":\(store.overLimit),\"spend\":\(store.spendLimit?.usd.map { String($0) } ?? "null")}")
         for e in store.ended { print("{\"ended\":\"\(e.id)\",\"name\":\"\(e.displayTitle)\"}") }
+        // A hover card whose text changes under the pointer (the header lock) shows the new text.
+        let tid = UUID()
+        TipCenter.shared.hover(tid, "before click", true)
+        RunLoop.main.run(until: Date().addingTimeInterval(0.6))
+        TipCenter.shared.update(tid, "after click")
+        print("{\"tipAfterUpdate\":\"\(TipCenter.shared.lastText ?? "")\"}")
+        TipCenter.shared.hide()
     }
     if let i = args.firstIndex(of: "--snapshot"), i + 1 < args.count {
         let renderer = ImageRenderer(content: SpyglassView(store: store).environment(\.colorScheme, .dark))

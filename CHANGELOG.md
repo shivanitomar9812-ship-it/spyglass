@@ -2,6 +2,9 @@
 
 All releases so far were made on 2026-11-22. Versions before 0.16.0 were released under the name Tower. Bugs that escaped to a release, and the check that now catches each, are in [HARNESS.md](HARNESS.md).
 
+## 0.27.1
+- Fix: the lock's hover text didn't change after a click (it kept saying Allow is on). Hover cards now refresh in place when their text changes.
+
 ## 0.27.0
 - A lock in the header turns Allow from the panel on and off in one click: open = on, closed (orange) = off, so it's always visible which mode you're in.
 - The title no longer wraps when the collapsed header is tight; the status text gives way instead.

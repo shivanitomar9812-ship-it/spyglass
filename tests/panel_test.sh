@@ -55,6 +55,8 @@ eq "version tab name ignored" "Platform listing famous repositories" "$(row ver 
 eq "context warning at 91%" "true" "$(row ctx .contextFull)"
 eq "no warning at 6%" "false" "$(row tab .contextFull)"
 eq "permission card" "waiting|rm -rf build" "$(row perm '"\(.state)|\(.permission)"')"
+# Escaped (0.27.0): the lock's hover card kept "Allow … is on" after a click; it now refreshes in place.
+eq "hover card follows a text change" "after click" "$(echo "$out" | jq -r 'select(.tipAfterUpdate) | .tipAfterUpdate')"
 eq "risky command flagged on the card (no Allow)" "recursive delete" "$(row perm '.risky')"
 # A rule added after the prompt appeared still applies (the panel re-checks what it shows).
 printf 'make test   # runs the slow suite\n' > "$SPYGLASS_HOME/risky.txt"

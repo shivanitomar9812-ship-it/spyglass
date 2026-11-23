@@ -89,6 +89,7 @@ Claude Code 2.1.330, `PermissionRequest` hook (2026-11-22):
 | — | "$0.00 extra" squeezed a row's status word to "W" (found in the over-limit snapshot) | extra $ shown only once > $0.01 |
 | — | "Bring the panel back" missed sessions already waiting at startup: the Store's first reload ran before the handler was set (found by the new test) | `panel_test.sh` wake check |
 | — | Hook tests ran before `panel_test.sh` rebuilt the app, so they tested the previous build (new risky-command checks failed, then passed alone) | `run.sh` rebuilds a stale binary before any test |
+| 0.27.0 | The header lock's hover card kept saying "Allow from the panel is on" after a click: hover cards took their text once, on hover | `panel_test.sh` hover card follows a text change |
 
 ## Not yet checked live
 

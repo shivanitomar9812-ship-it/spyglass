@@ -29,6 +29,13 @@ final class TipCenter {
         DispatchQueue.main.asyncAfter(deadline: .now() + (wasShowing ? 0.05 : 0.45), execute: work)
     }
 
+    /// The hovered area's text changed under the pointer (e.g. the lock was clicked): refresh the card in place.
+    func update(_ id: UUID, _ text: String) {
+        guard let i = stack.firstIndex(where: { $0.id == id }), !text.isEmpty else { return }
+        stack[i].text = text
+        if shown == id, window?.isVisible == true { show(text) }
+    }
+
     func hide() {
         pending?.cancel(); pending = nil; stack.removeAll(); shown = nil
         window?.orderOut(nil)
@@ -100,6 +107,7 @@ private struct TipModifier: ViewModifier {
     @State private var id = UUID()
     func body(content: Content) -> some View {
         content.onHover { TipCenter.shared.hover(id, text, $0) }
+            .onChange(of: text) { TipCenter.shared.update(id, $0) }
             .onDisappear { TipCenter.shared.hover(id, "", false) }
     }
 }
