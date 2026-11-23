@@ -61,7 +61,7 @@ import SwiftUI
             var row: [String: Any] = ["id": s.id, "name": s.displayTitle, "state": s.state, "contextFull": s.contextFull,
                                       "canRename": store.canRename(s)]
             row["model"] = s.model; row["ctx"] = s.ctx; row["tabName"] = s.tabName
-            row["permission"] = s.permission?.detail
+            row["permission"] = s.permission?.detail; row["risky"] = s.permission?.riskReason
             row["asked"] = s.asked?.text
             row["lastLine"] = s.lastLine; row["oldHooks"] = store.oldHooks(s); row["hooksMissing"] = s.hooksMissing ?? false
             if s.asked != nil { row["canReply"] = store.canReply(s); row["yesNo"] = Store.isYesNo(s.asked!.text) }

@@ -2,6 +2,10 @@
 
 All releases so far were made on 2026-11-22. Versions before 0.16.0 were released under the name Tower. Bugs that escaped to a release, and the check that now catches each, are in [HARNESS.md](HARNESS.md).
 
+## 0.23.0
+- Risky commands can't be approved with one click: recursive deletes, `sudo`, force-push, `git reset --hard`, kubectl / Helm / Terraform changes, destructive SQL, `curl | sh` and similar show "⚠︎ Risky" with **Review in <terminal>** and Deny instead of Allow. The hook checks the full command (not the shortened one on the card) and refuses an allow for them whatever writes it.
+- Tests always run against a fresh build of the app.
+
 ## 0.22.1
 - Removes the code for moving from the old name (Tower): the migration, the old-name checks in `/spyglass:doctor`, and old-name handling in setup and uninstall.
 

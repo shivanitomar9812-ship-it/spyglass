@@ -193,6 +193,39 @@ struct Permission: Codable, Equatable {
     var detail: String?
     var at: Double
     var key: String?   // fingerprint of the tool call; set by hooks that let answer.sh take Spyglass's answer
+    var risky: String? // why the command can't be approved from the panel (see Risk)
+
+    /// Risky from the hook (full command), or from the shown text for prompts recorded by older hooks.
+    var riskReason: String? { risky ?? Risk.reason(tool: tool, command: detail ?? "") }
+}
+
+/// Commands that can't be approved from the panel: one click on a reflex shouldn't delete, force-push or deploy.
+/// The panel shows no Allow for them, and the answer hook refuses an allow, so they're answered in the terminal.
+enum Risk {
+    static let rules: [(String, String)] = [
+        (#"(^|[\s;&|(`'"])sudo\s"#, "sudo"),
+        (#"(^|[\s;&|(`'"])rm\s+(-\S+\s+)*(-[a-z]*r|--recursive)"#, "recursive delete"),
+        (#"\b(hdfs\s+dfs|hadoop\s+fs)\s+-rm"#, "HDFS delete"),
+        (#"\b(aws\s+s3\s+(rm|rb)|gsutil\s+(-m\s+)?rm)\b"#, "cloud storage delete"),
+        (#"\bgit\s+push\b[^;&|]*(\s--force|\s-f\b|\s\+\S)"#, "force-push"),
+        (#"\bgit\s+reset\s+[^;&|]*--hard"#, "git reset --hard"),
+        (#"\bgit\s+clean\s+-\S*f"#, "git clean"),
+        (#"\bkubectl\s+([^\s;&|]+\s+)*?(delete|apply|replace|patch|scale|drain|edit|cordon|rollout\s+restart)\b"#, "changes a Kubernetes cluster"),
+        (#"\bhelm\s+([^\s;&|]+\s+)*?(install|upgrade|uninstall|delete|rollback)\b"#, "Helm release change"),
+        (#"\bterraform\s+([^\s;&|]+\s+)*?(apply|destroy)\b"#, "Terraform apply/destroy"),
+        (#"\b(drop\s+(table|database|schema)|truncate\s+table|delete\s+from)\b"#, "destructive SQL"),
+        (#"\b(curl|wget)\b[^|;&]*\|\s*(sudo\s+)?(ba|z)?sh\b"#, "runs a downloaded script"),
+        (#"(^|[\s;&|(`'"])(mkfs\S*|dd\s+[^;&|]*of=)"#, "writes a disk"),
+        (#"\b(chmod|chown)\s+-R\b"#, "recursive permission change"),
+    ]
+    static let compiled: [(NSRegularExpression, String)] = rules.compactMap { r in
+        (try? NSRegularExpression(pattern: r.0, options: [.caseInsensitive])).map { ($0, r.1) }
+    }
+    static func reason(tool: String?, command: String) -> String? {
+        guard tool == "Bash" || tool == nil, !command.isEmpty else { return nil }
+        let range = NSRange(command.startIndex..., in: command)
+        return compiled.first { $0.0.firstMatch(in: command, range: range) != nil }?.1
+    }
 }
 
 /// An Allow / Deny click in flight (or just failed), by session id.

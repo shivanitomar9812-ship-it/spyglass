@@ -88,6 +88,7 @@ Claude Code 2.1.330, `PermissionRequest` hook (2026-11-22):
 | — | The model menu can't be drawn offscreen (yellow 🚫 in snapshots) | `Store.snapshotMode` draws a plain stand-in |
 | — | "$0.00 extra" squeezed a row's status word to "W" (found in the over-limit snapshot) | extra $ shown only once > $0.01 |
 | — | "Bring the panel back" missed sessions already waiting at startup: the Store's first reload ran before the handler was set (found by the new test) | `panel_test.sh` wake check |
+| — | Hook tests ran before `panel_test.sh` rebuilt the app, so they tested the previous build (new risky-command checks failed, then passed alone) | `run.sh` rebuilds a stale binary before any test |
 
 ## Not yet checked live
 

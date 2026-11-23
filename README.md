@@ -32,7 +32,7 @@ Running several Claude Code sessions at once? Spyglass keeps a small always-on-t
 
 | Action | What Spyglass does |
 |---|---|
-| **Allow once / Deny** a permission prompt | answers it through Claude Code's permission hook, so it works wherever the session runs (terminal, Claude panel, JetBrains, cmux). The terminal prompt stays usable and the first answer wins; Deny stops the turn like Esc. Never "always allow" |
+| **Allow once / Deny** a permission prompt | answers it through Claude Code's permission hook, so it works wherever the session runs (terminal, Claude panel, JetBrains, cmux). The terminal prompt stays usable and the first answer wins; Deny stops the turn like Esc. Never "always allow". Risky commands (recursive delete, `sudo`, force-push, `git reset --hard`, kubectl / Helm / Terraform changes, destructive SQL, `curl | sh`) get a warning and no Allow: you review and answer them in the terminal |
 | **Answer a question** (single choice, up to 4 options) | presses the option's number; bigger questions point you to the terminal |
 | **Reply** to a question Claude asks in text | **Yes / No** for yes/no questions, or **Reply…** for one line; typed only while the session waits on you, only where Spyglass can type, never a slash command |
 | **Switch model** (Opus, Sonnet, Haiku) | asks you to confirm, types `/model`, answers Claude Code's "Switch model?" prompt, and leaves your default model for new sessions unchanged |

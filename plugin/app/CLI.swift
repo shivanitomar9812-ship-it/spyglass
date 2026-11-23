@@ -487,7 +487,9 @@ enum CLI {
         case "PermissionRequest":
             o["status"] = "waiting"; o["activity"] = "Wants to use " + (tool.isEmpty ? "a tool" : tool)
             let detail = ["command", "file_path", "notebook_path", "url", "query", "pattern"].lazy.compactMap { ti[$0] as? String }.first ?? ""
-            o["permission"] = ["tool": tool, "detail": cut(oneLine(detail), 300), "at": now, "key": fingerprint(input["tool_input"])]
+            var perm: [String: Any] = ["tool": tool, "detail": cut(oneLine(detail), 300), "at": now, "key": fingerprint(input["tool_input"])]
+            if let why = Risk.reason(tool: tool, command: ti["command"] as? String ?? "") { perm["risky"] = why }
+            o["permission"] = perm
         case "UserPromptSubmit":
             o["status"] = "working"; o["activity"] = "Thinking…"; o["turnStarted"] = now
             let prompt = cut(oneLine(input["prompt"] as? String ?? ""), 120)
@@ -574,6 +576,10 @@ enum CLI {
                 unlink(answer)
                 let allow = (a["behavior"] as? String) == "allow"
                 guard allow || (a["behavior"] as? String) == "deny" else { return 0 }
+                // Risky commands are approved in the terminal only, whatever wrote this file.
+                if allow, Risk.reason(tool: input["tool_name"] as? String, command: JSON.get(input, ".tool_input.command") as? String ?? "") != nil {
+                    Thread.sleep(forTimeInterval: poll); waited += poll; continue
+                }
                 if var s = JSON.load(session) as? [String: Any], JSON.get(s, ".permission.key") as? String == key {
                     s.removeValue(forKey: "permission")
                     s["status"] = allow ? "working" : "idle"

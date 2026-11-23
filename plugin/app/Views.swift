@@ -241,12 +241,20 @@ struct PermissionCard: View {
                     .padding(6).background(RoundedRectangle(cornerRadius: 6).fill(Color.black.opacity(0.35)))
                     .tip(d)
             }
+            if let why = perm.riskReason, reply == nil {
+                Text("⚠︎ Risky: \(why)").font(.system(size: 11, weight: .semibold)).foregroundColor(.orange)
+            }
             HStack(spacing: 8) {
                 if let r = reply, let why = r.failed {
                     Text("⚠︎ \(why)").font(.system(size: 11, weight: .semibold)).foregroundColor(.orange)
                 } else if let r = reply {
                     Text(r.approve ? "Allowing…" : "Denying…").font(.system(size: 11, weight: .semibold))
                         .foregroundColor(.white.opacity(0.6))
+                } else if let why = perm.riskReason {
+                    ReplyButton(title: "Review in \(store.caps(s).app) ↗", color: .orange) { store.jump(s) }
+                        .tip("Risky (\(why)): Spyglass doesn't approve these with one click. Read it and answer in \(store.caps(s).app).")
+                    ReplyButton(title: "Deny", color: .white.opacity(0.75)) { store.reply(s, approve: false) }
+                        .tip("Decline it (same as pressing Esc)")
                 } else {
                     ReplyButton(title: "Allow once", color: accent) { store.reply(s, approve: true) }
                         .tip("Approve this \(perm.tool ?? "tool") call once (same as pressing 1)")

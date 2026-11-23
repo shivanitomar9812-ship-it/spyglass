@@ -55,6 +55,7 @@ eq "version tab name ignored" "Platform listing famous repositories" "$(row ver 
 eq "context warning at 91%" "true" "$(row ctx .contextFull)"
 eq "no warning at 6%" "false" "$(row tab .contextFull)"
 eq "permission card" "waiting|rm -rf build" "$(row perm '"\(.state)|\(.permission)"')"
+eq "risky command flagged on the card (no Allow)" "recursive delete" "$(row perm '.risky')"
 eq "asked in plain text: waiting, question shown" "waiting|Shall I continue with the welcome card?" "$(row asked '"\(.state)|\(.asked)"')"
 # Escaped (found rendering the demo GIF): yes/no was judged on the first word, so "The docs are ready. Should I…?" got no Yes/No.
 session asked2 '{"title":"Asked after a statement","titleSource":"ai","status":"waiting","asked":{"text":"The /orders docs are ready. Should I also add examples for /refunds?","at":7}}'
@@ -166,6 +167,13 @@ SPYGLASS_NO_REGISTRY=1 "$BIN" --selftest --reply h-panel:allow >/dev/null 2>&1
 eq "Allow writes the hook's answer" '{"behavior":"allow","key":"abcdef0123456789"}' "$(jq -cS . "$SPYGLASS_HOME/answers/h-panel.json" 2>/dev/null)"
 SPYGLASS_NO_REGISTRY=1 "$BIN" --selftest --reply h-cmux:deny >/dev/null 2>&1
 eq "Deny writes the hook's answer" "deny" "$(jq -r .behavior "$SPYGLASS_HOME/answers/h-cmux.json" 2>/dev/null)"
+# Risky: Allow from the panel does nothing (answered in the terminal); Deny still works.
+jq '.permission = {tool: "Bash", detail: "kubectl -n prod delete pod api-1", at: 5, key: "fedcba9876543210", risky: "changes a Kubernetes cluster"}' "$SPYGLASS_HOME/sessions/h-panel.json" > "$TMP/t.json" && mv "$TMP/t.json" "$SPYGLASS_HOME/sessions/h-panel.json"
+rm -f "$SPYGLASS_HOME/answers/h-panel.json"
+SPYGLASS_NO_REGISTRY=1 "$BIN" --selftest --reply h-panel:allow >/dev/null 2>&1
+eq "risky: Allow from the panel writes nothing" "no" "$([ -f "$SPYGLASS_HOME/answers/h-panel.json" ] && echo yes || echo no)"
+SPYGLASS_NO_REGISTRY=1 "$BIN" --selftest --reply h-panel:deny >/dev/null 2>&1
+eq "risky: Deny still answers" "deny" "$(jq -r .behavior "$SPYGLASS_HOME/answers/h-panel.json" 2>/dev/null)"
 for id in h-panel h-cmux; do jq '.status = "done" | del(.permission)' "$SPYGLASS_HOME/sessions/$id.json" > "$TMP/t.json" && mv "$TMP/t.json" "$SPYGLASS_HOME/sessions/$id.json"; done
 
 # A Terminal.app prompt without a fingerprint (older hooks): no keys there, so the snapshot shows "Answer in Terminal".

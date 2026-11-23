@@ -445,6 +445,7 @@ final class Store: ObservableObject {
 
     func reply(_ s: Session, approve: Bool) {
         guard s.state == "waiting", let perm = s.permission, replies[s.id] == nil, canAnswerPermission(s) else { return }
+        if approve && perm.riskReason != nil { return }   // risky: answered in the terminal only
         let now = Date().timeIntervalSince1970
         replies[s.id] = Reply(approve: approve, at: perm.at, since: now, failed: nil)
         if let key = perm.key {
