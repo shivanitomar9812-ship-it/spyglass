@@ -2,6 +2,9 @@
 
 All releases so far were made on 2026-11-22. Versions before 0.16.0 were released under the name Tower. Bugs that escaped to a release, and the check that now catches each, are in [HARNESS.md](HARNESS.md).
 
+## 0.30.1
+- Same as 0.30.0, which never got a GitHub release: its CI build failed on a test-timing bug (fixed).
+
 ## 0.30.0
 - Sessions whose hooks stopped reporting (for example, a session still running a removed plugin's hooks) no longer look current: if messages keep coming 5+ minutes after the last report, the row gets a ⚠︎, its hover reads the last prompt from the conversation and says since when it's been quiet, and after 30 minutes it stops claiming "working". The check uses message timestamps, so Claude Code's after-turn bookkeeping (away summaries) doesn't count as activity.
 

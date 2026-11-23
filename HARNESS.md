@@ -92,6 +92,7 @@ Claude Code 2.1.330, `PermissionRequest` hook (2026-11-22):
 | 0.27.0 | The header lock's hover card kept saying "Allow from the panel is on" after a click: hover cards took their text once, on hover | `panel_test.sh` hover card follows a text change |
 | 0.27.1 | A row kept an old /rename ("Tower") after its Cursor tab was renamed ("Spyglass"): the rename outranked the live tab name | `panel_test.sh` the tab's name wins over an older rename |
 | 0.29.0 | A session whose hooks had stopped (it ran a removed plugin's hooks) kept "working" and showed yesterday's prompt on hover | `panel_test.sh` hooks gone quiet |
+| 0.30.0 | CI only: the wait-time test measured from the clock reading taken when the file started; on slow runners it reached that check 30+ s later (counted 333 s, allowed 290–330), so the release build failed | the test takes a fresh `now` right before it |
 
 ## Not yet checked live
 
