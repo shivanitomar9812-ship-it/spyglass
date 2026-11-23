@@ -43,6 +43,14 @@ set_ flaky '.status = "waiting" | .activity = "Wants to use Bash" | .permission 
 frame 2.6
 set_ flaky 'del(.permission) | .status = "working" | .activity = "Approved from Spyglass"'
 frame 1.2
+# 2b. A risky command gets no one-click Allow; the lock in the header turns Allow off for every prompt.
+set_ flaky '.status = "waiting" | .activity = "Wants to use Bash" | .permission = {tool: "Bash", detail: "git push --force origin main", at: '$((now - 20))', key: "demo2"}'
+frame 2.6
+: > "$SPYGLASS_HOME/panel-allow-off"
+set_ flaky '.permission = {tool: "Bash", detail: "npm test -- checkout --repeat 20", at: '$((now - 15))', key: "demo3"}'
+frame 2.6
+rm -f "$SPYGLASS_HOME/panel-allow-off"
+set_ flaky 'del(.permission) | .status = "working" | .activity = "Running npm test -- checkout"'
 # 3. Claude asks a question with choices: pick one from the panel.
 set_ docs '.status = "waiting" | .activity = "Asking you a question" | .question = {text: "Which endpoints should get examples?", options: ["Orders", "+ Refunds", "All"], at: 1}'
 frame 2.6
@@ -87,3 +95,9 @@ vf="scale=$((w * 3 / 4 / 2 * 2)):-2:flags=lanczos"
 ffmpeg -v error -y -f concat -safe 0 -i "$tmp/list.txt" -vf "$vf,palettegen=stats_mode=diff" "$tmp/pal.png"
 ffmpeg -v error -y -f concat -safe 0 -i "$tmp/list.txt" -i "$tmp/pal.png" -lavfi "$vf[x];[x][1:v]paletteuse=dither=none" -loop 0 "$out"
 echo "Wrote $out ($(du -h "$out" | cut -f1), $n frames)"
+
+# Optional square MP4 (LinkedIn / GitHub): SPYGLASS_MP4=path demo/storyboard.sh
+if [ -n "${SPYGLASS_MP4:-}" ]; then
+  ffmpeg -v error -y -f concat -safe 0 -i "$tmp/list.txt" -vf "scale=960:960:force_original_aspect_ratio=decrease:flags=lanczos,scale=trunc(iw/2)*2:trunc(ih/2)*2,pad=1080:1080:(ow-iw)/2:(oh-ih)/2:0x2b2b2b,fps=30,format=yuv420p" -c:v libx264 -crf 20 -movflags +faststart "$SPYGLASS_MP4"
+  echo "Wrote $SPYGLASS_MP4 ($(du -h "$SPYGLASS_MP4" | cut -f1))"
+fi

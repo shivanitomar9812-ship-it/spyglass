@@ -6,9 +6,9 @@
 
 Running several Claude Code sessions at once? Spyglass keeps a small always-on-top panel with one row per session: what it's doing right now, which ones need you, how much of your plan you've used. You can answer most prompts from the panel itself, and jump to the exact terminal tab for the rest.
 
-<p align="center"><img src="demo/spyglass-demo.gif" alt="Spyglass: sessions working, a permission prompt allowed from the panel, a question answered by picking an option, a model switch with a confirm, a finished session, a context warning, an ended session with Resume, the compact view, and the collapsed view where a waiting question is answered in place" width="560"></p>
+<p align="center"><img src="demo/spyglass-demo.gif" alt="Spyglass: sessions working, a permission prompt allowed from the panel, a risky command that gets no one-click Allow, the header lock turning Allow off, a question answered by picking an option, a model switch with a confirm, a finished session, a context warning, an ended session with Resume, the compact view, and the collapsed view where a waiting question is answered in place" width="560"></p>
 
-<p align="center"><a href="demo/spyglass-demo.mp4">Watch the 25-second video</a></p>
+<p align="center"><a href="demo/spyglass-demo.mp4">Watch the 30-second video</a></p>
 
 ## What it shows
 
