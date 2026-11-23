@@ -25,6 +25,8 @@ Running several Claude Code sessions at once? Spyglass keeps a small always-on-t
 - **Keyboard**: ⌃⌥S shows / hides Spyglass, ⌃⌥J jumps to the session that has waited on you longest
 - **Waiting on you**: "Needs you · 7m" on a row, and how long sessions waited on you today in the header
 - **Self-check**: a session started after installing Spyglass that isn't reporting through its hooks gets a ⚠︎, and `/spyglass:doctor` says what's wrong
+- **Quiet sessions**: if a session's hooks stop reporting while its conversation keeps moving, the row gets a ⚠︎ after 5 minutes and stops claiming "working" after 30, so a stale row never looks current
+- **Risky commands never get one click**: deletes, force-pushes, production hosts, cluster and cloud changes and the like show a warning with only Review and Deny. The lock in the header turns Allow off for every prompt
 - **Hover for context**: how long it has been working or waiting, last prompt, folder and branch, model, context, tokens, and which tab it lives in
 - **Compact view**: one line per session, grouped by repo; rows that need you stay full size
 - **Collapsed, it still tells you what rang**: under the header, one line for each session that needs you or just finished. Click a "Needs you" line to open it in place and answer; click a "Done" line to jump
