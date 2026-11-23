@@ -2,6 +2,9 @@
 
 All releases so far were made on 2026-11-22. Versions before 0.16.0 were released under the name Tower. Bugs that escaped to a release, and the check that now catches each, are in [HARNESS.md](HARNESS.md).
 
+## 0.24.0
+- Your own risky commands: ⚙ → **Risky commands…** opens `~/.claude/spyglass/risky.txt`. One rule per line: plain text (any case) or `re:` patterns, with an optional `# reason` shown on the card. Your rules also match the file a tool edits or the URL it fetches (e.g. `.env`, `secrets/`). Matching prompts get the same protection as the built-in list. Changes apply immediately, even to a prompt already waiting.
+
 ## 0.23.0
 - Risky commands can't be approved with one click: recursive deletes, `sudo`, force-push, `git reset --hard`, kubectl / Helm / Terraform changes, destructive SQL, `curl | sh` and similar show "⚠︎ Risky" with **Review in <terminal>** and Deny instead of Allow. The hook checks the full command (not the shortened one on the card) and refuses an allow for them whatever writes it.
 - Tests always run against a fresh build of the app.

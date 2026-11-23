@@ -195,7 +195,7 @@ struct Permission: Codable, Equatable {
     var key: String?   // fingerprint of the tool call; set by hooks that let answer.sh take Spyglass's answer
     var risky: String? // why the command can't be approved from the panel (see Risk)
 
-    /// Risky from the hook (full command), or from the shown text for prompts recorded by older hooks.
+    /// Risky from the hook (full command), or from the shown text (older hooks, or a rule added since).
     var riskReason: String? { risky ?? Risk.reason(tool: tool, command: detail ?? "") }
 }
 
@@ -221,10 +221,83 @@ enum Risk {
     static let compiled: [(NSRegularExpression, String)] = rules.compactMap { r in
         (try? NSRegularExpression(pattern: r.0, options: [.caseInsensitive])).map { ($0, r.1) }
     }
+    /// `command` is the command for Bash, else what the tool acts on (file path, URL…): built-in rules are for
+    /// commands only; your own rules (risky.txt) apply to both.
     static func reason(tool: String?, command: String) -> String? {
-        guard tool == "Bash" || tool == nil, !command.isEmpty else { return nil }
+        guard !command.isEmpty else { return nil }
         let range = NSRange(command.startIndex..., in: command)
-        return compiled.first { $0.0.firstMatch(in: command, range: range) != nil }?.1
+        if tool == "Bash" || tool == nil, let r = compiled.first(where: { $0.0.firstMatch(in: command, range: range) != nil }) { return r.1 }
+        return custom().first { $0.matches(command) }.map { $0.reason }
+    }
+
+    // MARK: Your own rules: ~/.claude/spyglass/risky.txt (⚙ → Risky commands…)
+
+    struct Rule {
+        let text: String, regex: NSRegularExpression?, reason: String
+        func matches(_ s: String) -> Bool {
+            if let r = regex { return r.firstMatch(in: s, range: NSRange(s.startIndex..., in: s)) != nil }
+            return s.range(of: text, options: .caseInsensitive) != nil
+        }
+    }
+    static var file: String {
+        (ProcessInfo.processInfo.environment["SPYGLASS_HOME"].flatMap { $0.isEmpty ? nil : $0 }
+            ?? (Store.userHome + "/.claude/spyglass")) + "/risky.txt"
+    }
+    /// One rule per line: plain text matches anywhere (any case); `re:` starts a regular expression;
+    /// `  # reason` is shown on the card. Lines starting with # are comments. Bad patterns are skipped.
+    static func parse(_ text: String) -> [Rule] {
+        text.split(whereSeparator: \.isNewline).compactMap { raw in
+            var line = raw.trimmingCharacters(in: .whitespaces)
+            guard !line.isEmpty, !line.hasPrefix("#") else { return nil }
+            var why: String?
+            if let r = line.range(of: " #") {
+                why = line[r.upperBound...].trimmingCharacters(in: .whitespaces)
+                line = line[..<r.lowerBound].trimmingCharacters(in: .whitespaces)
+            }
+            guard !line.isEmpty else { return nil }
+            let reason = (why?.isEmpty == false) ? why! : "matches your rule “\(line)”"
+            if line.hasPrefix("re:") {
+                guard let re = try? NSRegularExpression(pattern: String(line.dropFirst(3)), options: [.caseInsensitive]) else { return nil }
+                return Rule(text: line, regex: re, reason: reason)
+            }
+            return Rule(text: line, regex: nil, reason: reason)
+        }
+    }
+    private static var cache: (stamp: Date?, rules: [Rule]) = (nil, [])
+    private static let lock = NSLock()
+    /// Re-read only when the file changes (the panel asks on every redraw).
+    static func custom() -> [Rule] {
+        lock.lock(); defer { lock.unlock() }
+        let stamp = (try? FileManager.default.attributesOfItem(atPath: file))?[.modificationDate] as? Date
+        if stamp == nil { cache = (nil, []); return [] }
+        if stamp != cache.stamp { cache = (stamp, parse((try? String(contentsOfFile: file, encoding: .utf8)) ?? "")) }
+        return cache.rules
+    }
+    static let template = """
+    # Spyglass: your own risky commands. A prompt that matches one of these gets no Allow button in the panel:
+    # you read it and answer it in the terminal. The built-in list (rm -r, sudo, force-push, kubectl / Helm /
+    # Terraform changes, destructive SQL, curl | sh…) always applies too.
+    #
+    # One rule per line. Lines starting with # are ignored. Changes apply right away.
+    #   prod                       plain text: matches anywhere in the command, any case
+    #   re:git push .* (main|master)$   re: starts a regular expression
+    #   prod   # touches production     text after " #" is shown on the card as the reason
+    # Rules also match the file a tool edits or the URL it fetches, e.g. .env or secrets/
+    #
+    # Examples (remove the leading # to use one):
+    # prod                       # touches production
+    # --context production       # production cluster
+    # .env                       # secrets file
+    # re:git push .* (main|master)$   # pushes to the main branch
+
+    """
+    /// Creates the file with instructions the first time, then returns its path.
+    static func ensureFile() -> String {
+        if !FileManager.default.fileExists(atPath: file) {
+            try? FileManager.default.createDirectory(atPath: (file as NSString).deletingLastPathComponent, withIntermediateDirectories: true)
+            try? template.write(toFile: file, atomically: true, encoding: .utf8)
+        }
+        return file
     }
 }
 

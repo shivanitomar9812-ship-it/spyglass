@@ -59,4 +59,25 @@ record "$rreq"; k=$(key)
 out=$(hook "$rreq"); wait $a
 eq "risky: allow ignored, deny taken" "deny" "$(jq -r '.hookSpecificOutput.decision.behavior' <<<"$out")"
 rm -f "$SPYGLASS_HOME/answers/s.json"
+# Your own rules (~/.claude/spyglass/risky.txt, ⚙ → Risky commands…): plain text any case, re: patterns, a reason after " #".
+cat > "$SPYGLASS_HOME/risky.txt" <<'RULES'
+# a comment line
+PROD-DB        # touches production
+re:git push .* (main|master)$
+.env
+re:([unclosed
+RULES
+eq "your rule, with its reason" "touches production" "$(risky "psql -h prod-db.internal -c 'select 1'")"
+eq "your re: rule" "yes" "$([ -n "$(risky "git push origin main")" ] && echo yes || echo no)"
+eq "your re: rule doesn't over-match" "" "$(risky "git push origin feature")"
+eq "a rule without a reason names itself" 'matches your rule “.env”' "$(record '{"session_id":"r","hook_event_name":"PermissionRequest","tool_name":"Edit","tool_input":{"file_path":"/app/.env"}}'; jq -r '.permission.risky // ""' "$SPYGLASS_HOME/sessions/r.json")"
+eq "built-in rules stay commands-only" "" "$(record '{"session_id":"r","hook_event_name":"PermissionRequest","tool_name":"Edit","tool_input":{"file_path":"/app/sudo notes.md"}}'; jq -r '.permission.risky // ""' "$SPYGLASS_HOME/sessions/r.json")"
+eq "comments and broken patterns ignored" "" "$(risky "echo a comment line")"
+ereq='{"session_id":"s","hook_event_name":"PermissionRequest","tool_name":"Edit","tool_input":{"file_path":"/app/.env"}}'
+record "$ereq"; k=$(key)
+( sleep 0.3; answer "$k" allow; sleep 0.5; answer "$k" deny ) & a=$!
+out=$(hook "$ereq"); wait $a
+eq "your rule: a forged allow is refused too" "deny" "$(jq -r '.hookSpecificOutput.decision.behavior' <<<"$out")"
+rm -f "$SPYGLASS_HOME/risky.txt" "$SPYGLASS_HOME/answers/s.json"
+eq "no file, no custom rules" "" "$(risky "psql -h prod-db")"
 finish

@@ -457,6 +457,9 @@ struct SettingsMenu: View {
                     Toggle("Start at login", isOn: Binding(get: { store.startsAtLogin }, set: { store.setStartAtLogin($0) }))
                     Toggle("Shortcuts: ⌃⌥S show / hide · ⌃⌥J jump to who's waiting", isOn: Binding(get: { store.hotkeys }, set: { store.setPref("hotkeys", $0) }))
                 }
+                Section("Safety") {
+                    Button("Risky commands…") { NSWorkspace.shared.open(URL(fileURLWithPath: Risk.ensureFile())) }
+                }
                 Button("Show welcome") { store.reopenWelcome() }
             } label: {
                 Image(systemName: "gearshape").font(.system(size: 12, weight: .semibold)).foregroundColor(.white.opacity(0.75))

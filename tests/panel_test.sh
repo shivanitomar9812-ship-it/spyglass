@@ -56,6 +56,11 @@ eq "context warning at 91%" "true" "$(row ctx .contextFull)"
 eq "no warning at 6%" "false" "$(row tab .contextFull)"
 eq "permission card" "waiting|rm -rf build" "$(row perm '"\(.state)|\(.permission)"')"
 eq "risky command flagged on the card (no Allow)" "recursive delete" "$(row perm '.risky')"
+# A rule added after the prompt appeared still applies (the panel re-checks what it shows).
+printf 'make test   # runs the slow suite\n' > "$SPYGLASS_HOME/risky.txt"
+jq '.permission.detail = "make test"' "$SPYGLASS_HOME/sessions/perm.json" > "$TMP/t.json" && cp "$SPYGLASS_HOME/sessions/perm.json" "$TMP/perm.bak" && mv "$TMP/t.json" "$SPYGLASS_HOME/sessions/perm.json"
+eq "your rule on the card" "runs the slow suite" "$(SPYGLASS_NO_REGISTRY=1 "$BIN" --selftest 2>/dev/null | jq -r 'select(.id == "perm") | .risky')"
+mv "$TMP/perm.bak" "$SPYGLASS_HOME/sessions/perm.json"; rm -f "$SPYGLASS_HOME/risky.txt"
 eq "asked in plain text: waiting, question shown" "waiting|Shall I continue with the welcome card?" "$(row asked '"\(.state)|\(.asked)"')"
 # Escaped (found rendering the demo GIF): yes/no was judged on the first word, so "The docs are ready. Should I…?" got no Yes/No.
 session asked2 '{"title":"Asked after a statement","titleSource":"ai","status":"waiting","asked":{"text":"The /orders docs are ready. Should I also add examples for /refunds?","at":7}}'
