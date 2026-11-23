@@ -296,11 +296,12 @@ export SPYGLASS_HOME="$TMP/spyglass"
 export SPYGLASS_HOME="$TMP/waits"; mkdir -p "$SPYGLASS_HOME/sessions"
 session wt '{"title":"Waits","titleSource":"ai","status":"waiting","permission":{"tool":"Bash","detail":"x","at":'$((now - 300))',"key":"k"}}'
 w1=$(SPYGLASS_NO_REGISTRY=1 "$BIN" --selftest 2>/dev/null | jq -r 'select(.waitedToday != null) | .waitedToday')
-eq "waiting 5 minutes counts ~5 minutes" "true" "$([ "$w1" -ge 290 ] && [ "$w1" -le 330 ] && echo true || echo "false ($w1)")"
+eq "waiting 5 minutes counts ~5 minutes" "true" "$([ "$w1" -ge 290 ] && [ "$w1" -le 360 ] && echo true || echo "false ($w1)")"
 ( sleep 0.5; f="$SPYGLASS_HOME/sessions/wt.json"; jq 'del(.permission) | .status = "working"' "$f" > "$f.t" && mv "$f.t" "$f" ) &
 flip=$!; SPYGLASS_NO_REGISTRY=1 "$BIN" --selftest --twice >/dev/null 2>&1; wait "$flip"
 t=$(jq -r '.total | floor' "$SPYGLASS_HOME/waits.json" 2>/dev/null)
-eq "answered: the wait is kept for today" "true" "$([ "${t:-0}" -ge 290 ] && [ "$t" -le 330 ] && echo true || echo "false ($t)")"
+# Slow CI runners (macOS on GitHub) add up to ~30 s between the fixture and the check: 333 s seen on v0.30.0.
+eq "answered: the wait is kept for today" "true" "$([ "${t:-0}" -ge 290 ] && [ "$t" -le 360 ] && echo true || echo "false ($t)")"
 export SPYGLASS_HOME="$TMP/spyglass"
 
 # Collapsed panel: a session that just finished (the chime) shows under the header, after the ones that need you.
