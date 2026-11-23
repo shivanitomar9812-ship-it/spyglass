@@ -445,7 +445,7 @@ final class Store: ObservableObject {
 
     func reply(_ s: Session, approve: Bool) {
         guard s.state == "waiting", let perm = s.permission, replies[s.id] == nil, canAnswerPermission(s) else { return }
-        if approve && perm.riskReason != nil { return }   // risky: answered in the terminal only
+        if approve && (perm.riskReason != nil || !panelAllow) { return }   // risky, or Allow turned off: terminal only
         let now = Date().timeIntervalSince1970
         replies[s.id] = Reply(approve: approve, at: perm.at, since: now, failed: nil)
         if let key = perm.key {
@@ -1079,6 +1079,10 @@ final class Store: ObservableObject {
         }
         return sessions.filter { $0.state == "waiting" }.min { since($0) < since($1) }
     }
+    /// ⚙ → Allow from the panel (see Risk.panelAllow). Published so the cards redraw when it changes.
+    @Published var panelAllow: Bool = Risk.panelAllow
+    func setPanelAllow(_ on: Bool) { Risk.setPanelAllow(on); panelAllow = on }
+
     func setPref(_ k: String, _ v: Bool) {
         UserDefaults.standard.set(v, forKey: k)
         switch k {

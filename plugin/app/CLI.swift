@@ -579,7 +579,7 @@ enum CLI {
                 // Risky commands are approved in the terminal only, whatever wrote this file.
                 let ti = input["tool_input"] as? [String: Any] ?? [:]
                 let subject = ["command", "file_path", "notebook_path", "url", "query", "pattern"].lazy.compactMap { ti[$0] as? String }.first ?? ""
-                if allow, Risk.reason(tool: input["tool_name"] as? String, command: subject) != nil {
+                if allow, !Risk.panelAllow || Risk.reason(tool: input["tool_name"] as? String, command: subject) != nil {
                     Thread.sleep(forTimeInterval: poll); waited += poll; continue
                 }
                 if var s = JSON.load(session) as? [String: Any], JSON.get(s, ".permission.key") as? String == key {

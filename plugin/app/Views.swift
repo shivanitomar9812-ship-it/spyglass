@@ -255,6 +255,11 @@ struct PermissionCard: View {
                         .tip("Risky (\(why)): Spyglass doesn't approve these with one click. Read it and answer in \(store.caps(s).app).")
                     ReplyButton(title: "Deny", color: .white.opacity(0.75)) { store.reply(s, approve: false) }
                         .tip("Decline it (same as pressing Esc)")
+                } else if !store.panelAllow {
+                    ReplyButton(title: "Go to \(store.caps(s).app) ↗", color: accent) { store.jump(s) }
+                        .tip("Allow from the panel is off (⚙): answer it in \(store.caps(s).app)")
+                    ReplyButton(title: "Deny", color: .white.opacity(0.75)) { store.reply(s, approve: false) }
+                        .tip("Decline it (same as pressing Esc)")
                 } else {
                     ReplyButton(title: "Allow once", color: accent) { store.reply(s, approve: true) }
                         .tip("Approve this \(perm.tool ?? "tool") call once (same as pressing 1)")
@@ -458,6 +463,7 @@ struct SettingsMenu: View {
                     Toggle("Shortcuts: ⌃⌥S show / hide · ⌃⌥J jump to who's waiting", isOn: Binding(get: { store.hotkeys }, set: { store.setPref("hotkeys", $0) }))
                 }
                 Section("Safety") {
+                    Toggle("Allow from the panel (off: only Go to tab or Deny)", isOn: Binding(get: { store.panelAllow }, set: { store.setPanelAllow($0) }))
                     Button("Risky commands…") { NSWorkspace.shared.open(URL(fileURLWithPath: Risk.ensureFile())) }
                 }
                 Button("Show welcome") { store.reopenWelcome() }

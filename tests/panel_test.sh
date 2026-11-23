@@ -179,6 +179,14 @@ SPYGLASS_NO_REGISTRY=1 "$BIN" --selftest --reply h-panel:allow >/dev/null 2>&1
 eq "risky: Allow from the panel writes nothing" "no" "$([ -f "$SPYGLASS_HOME/answers/h-panel.json" ] && echo yes || echo no)"
 SPYGLASS_NO_REGISTRY=1 "$BIN" --selftest --reply h-panel:deny >/dev/null 2>&1
 eq "risky: Deny still answers" "deny" "$(jq -r .behavior "$SPYGLASS_HOME/answers/h-panel.json" 2>/dev/null)"
+# ⚙ → Allow from the panel off: Allow writes nothing for any prompt; Deny still works.
+jq '.permission = {tool: "Bash", detail: "make test", at: 6, key: "1111222233334444"}' "$SPYGLASS_HOME/sessions/h-panel.json" > "$TMP/t.json" && mv "$TMP/t.json" "$SPYGLASS_HOME/sessions/h-panel.json"
+rm -f "$SPYGLASS_HOME/answers/h-panel.json"; touch "$SPYGLASS_HOME/panel-allow-off"
+SPYGLASS_NO_REGISTRY=1 "$BIN" --selftest --reply h-panel:allow >/dev/null 2>&1
+eq "Allow off: Allow from the panel writes nothing" "no" "$([ -f "$SPYGLASS_HOME/answers/h-panel.json" ] && echo yes || echo no)"
+SPYGLASS_NO_REGISTRY=1 "$BIN" --selftest --reply h-panel:deny >/dev/null 2>&1
+eq "Allow off: Deny still answers" "deny" "$(jq -r .behavior "$SPYGLASS_HOME/answers/h-panel.json" 2>/dev/null)"
+rm -f "$SPYGLASS_HOME/panel-allow-off" "$SPYGLASS_HOME/answers/h-panel.json"
 for id in h-panel h-cmux; do jq '.status = "done" | del(.permission)' "$SPYGLASS_HOME/sessions/$id.json" > "$TMP/t.json" && mv "$TMP/t.json" "$SPYGLASS_HOME/sessions/$id.json"; done
 
 # A Terminal.app prompt without a fingerprint (older hooks): no keys there, so the snapshot shows "Answer in Terminal".

@@ -203,20 +203,38 @@ struct Permission: Codable, Equatable {
 /// The panel shows no Allow for them, and the answer hook refuses an allow, so they're answered in the terminal.
 enum Risk {
     static let rules: [(String, String)] = [
+        // Your machine
         (#"(^|[\s;&|(`'"])sudo\s"#, "sudo"),
         (#"(^|[\s;&|(`'"])rm\s+(-\S+\s+)*(-[a-z]*r|--recursive)"#, "recursive delete"),
-        (#"\b(hdfs\s+dfs|hadoop\s+fs)\s+-rm"#, "HDFS delete"),
-        (#"\b(aws\s+s3\s+(rm|rb)|gsutil\s+(-m\s+)?rm)\b"#, "cloud storage delete"),
-        (#"\bgit\s+push\b[^;&|]*(\s--force|\s-f\b|\s\+\S)"#, "force-push"),
-        (#"\bgit\s+reset\s+[^;&|]*--hard"#, "git reset --hard"),
-        (#"\bgit\s+clean\s+-\S*f"#, "git clean"),
-        (#"\bkubectl\s+([^\s;&|]+\s+)*?(delete|apply|replace|patch|scale|drain|edit|cordon|rollout\s+restart)\b"#, "changes a Kubernetes cluster"),
-        (#"\bhelm\s+([^\s;&|]+\s+)*?(install|upgrade|uninstall|delete|rollback)\b"#, "Helm release change"),
-        (#"\bterraform\s+([^\s;&|]+\s+)*?(apply|destroy)\b"#, "Terraform apply/destroy"),
-        (#"\b(drop\s+(table|database|schema)|truncate\s+table|delete\s+from)\b"#, "destructive SQL"),
-        (#"\b(curl|wget)\b[^|;&]*\|\s*(sudo\s+)?(ba|z)?sh\b"#, "runs a downloaded script"),
         (#"(^|[\s;&|(`'"])(mkfs\S*|dd\s+[^;&|]*of=)"#, "writes a disk"),
         (#"\b(chmod|chown)\s+-R\b"#, "recursive permission change"),
+        (#"\b(curl|wget)\b[^|;&]*\|\s*(sudo\s+)?(ba|z)?sh\b"#, "runs a downloaded script"),
+        // Git and publishing
+        (#"\bgit\s+push\b[^;&|]*(\s--force|\s-f\b|\s\+\S)"#, "force-push"),
+        (#"\bgit\s+push\b"#, "pushes to a remote"),
+        (#"\bgit\s+reset\s+[^;&|]*--hard"#, "git reset --hard"),
+        (#"\bgit\s+clean\s+-\S*f"#, "git clean"),
+        (#"\b((docker|podman)\s+push|(npm|yarn|pnpm|cargo)\s+publish|twine\s+upload|gh\s+release\s+create|gh\s+pr\s+merge)\b"#, "publishes or merges"),
+        // Production
+        (#"\b(ssh|scp|rsync|psql|mysql|mongo|mongosh|redis-cli|clickhouse-client)\b[^;&|]*(^|[^a-z0-9])(prod|production)([^a-z0-9]|$)"#, "touches production"),
+        // Clusters and infrastructure
+        (#"\bkubectl\s+([^\s;&|]+\s+)*?(delete|apply|create|replace|patch|scale|autoscale|drain|cordon|uncordon|taint|label|annotate|set|edit|expose|run|exec|cp|rollout\s+(restart|undo|pause|resume))\b"#, "changes a Kubernetes cluster"),
+        (#"\bhelm\s+([^\s;&|]+\s+)*?(install|upgrade|uninstall|delete|rollback)\b"#, "Helm release change"),
+        (#"\bargocd\s+app\s+(sync|delete|rollback|set|patch|terminate-op)\b"#, "Argo CD change"),
+        (#"\bterraform\s+([^\s;&|]+\s+)*?(apply|destroy|import|taint)\b|\bterraform\s+state\s+(rm|mv|push)\b"#, "Terraform change"),
+        (#"\baws\s+([^\s;&|]+\s+)*?(delete|terminate|remove|put|update|create|modify|stop|reboot|deregister|detach)-[\w-]+"#, "changes AWS resources"),
+        (#"\bgcloud\s+([^\s;&|]+\s+)*?(delete|deploy|update|create|set-iam-policy|reset|stop)\b"#, "changes Google Cloud resources"),
+        (#"\baz\s+([^\s;&|]+\s+)*?(delete|create|update|deploy)\b"#, "changes Azure resources"),
+        (#"\b(hdfs\s+dfs|hadoop\s+fs)\s+-(rm|rmr|expunge|mv|chmod|chown)\b"#, "changes HDFS"),
+        (#"\b(aws\s+s3\s+(rm|rb|mv)|gsutil\s+(-m\s+)?(rm|mv))\b"#, "cloud storage delete"),
+        // Databases
+        (#"\b(insert\s+into|update\s+[\w."]+\s+set|delete\s+from|merge\s+into|truncate\s+(table\s+)?[\w."]+|alter\s+(table|database|schema|user|role|index|view|sequence)|create\s+(or\s+replace\s+)?(table|database|schema|index|user|role|view|function|trigger|extension)|drop\s+(table|database|schema|index|user|role|view|function)|(grant|revoke)\s+(all|select|insert|update|delete|usage|create|execute|connect))\b"#, "changes a database (SQL)"),
+        (#"\b(psql|mysql|sqlite3|mongosh|clickhouse-client)\b[^;&|]*(\s-f\s|\s--file[=\s]|<\s*\S+\.(sql|js))"#, "runs a SQL file"),
+        (#"\b(alembic\s+(upgrade|downgrade|stamp)|rails\s+db:\S+|rake\s+db:\S+|prisma\s+(migrate\s+(deploy|reset|dev)|db\s+push)|flyway\s+(migrate|clean|repair)|liquibase\s+(update|rollback|drop)|knex\s+migrate|sequelize\s+db:\S+|manage\.py\s+(migrate|flush))\b"#, "database migration"),
+        (#"\bredis-cli\b[^;&|]*\b(flushall|flushdb|del|unlink|set|hset|expire|config\s+set)\b"#, "changes Redis"),
+        (#"\b(dropDatabase|dropCollection|deleteMany|deleteOne|updateMany|updateOne|insertMany|insertOne|replaceOne)\b"#, "changes MongoDB"),
+        // APIs
+        (#"\bcurl\b[^;&|]*(-X\s*|--request\s+)(POST|PUT|PATCH|DELETE)\b"#, "sends a write request"),
     ]
     static let compiled: [(NSRegularExpression, String)] = rules.compactMap { r in
         (try? NSRegularExpression(pattern: r.0, options: [.caseInsensitive])).map { ($0, r.1) }
@@ -276,7 +294,7 @@ enum Risk {
     static let template = """
     # Spyglass: your own risky commands. A prompt that matches one of these gets no Allow button in the panel:
     # you read it and answer it in the terminal. The built-in list (rm -r, sudo, force-push, kubectl / Helm /
-    # Terraform changes, destructive SQL, curl | sh…) always applies too.
+    # Terraform / cloud changes, pushes, SQL and database changes, production hosts, curl | sh…) always applies too.
     #
     # One rule per line. Lines starting with # are ignored. Changes apply right away.
     #   prod                       plain text: matches anywhere in the command, any case
@@ -291,6 +309,18 @@ enum Risk {
     # re:git push .* (main|master)$   # pushes to the main branch
 
     """
+    /// ⚙ → "Allow from the panel": off means every prompt offers only Go to the tab and Deny.
+    /// A file, not a preference, so the permission hook (a separate program) honours it too.
+    static var allowOffFile: String { (file as NSString).deletingLastPathComponent + "/panel-allow-off" }
+    static var panelAllow: Bool { !FileManager.default.fileExists(atPath: allowOffFile) }
+    static func setPanelAllow(_ on: Bool) {
+        if on { try? FileManager.default.removeItem(atPath: allowOffFile) }
+        else {
+            try? FileManager.default.createDirectory(atPath: (allowOffFile as NSString).deletingLastPathComponent, withIntermediateDirectories: true)
+            FileManager.default.createFile(atPath: allowOffFile, contents: Data("Allow from the panel is off (⚙ in Spyglass).\n".utf8))
+        }
+    }
+
     /// Creates the file with instructions the first time, then returns its path.
     static func ensureFile() -> String {
         if !FileManager.default.fileExists(atPath: file) {
