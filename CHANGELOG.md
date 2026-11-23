@@ -2,6 +2,9 @@
 
 All releases so far were made on 2026-11-22. Versions before 0.16.0 were released under the name Tower. Bugs that escaped to a release, and the check that now catches each, are in [HARNESS.md](HARNESS.md).
 
+## 0.26.0
+- Turn off a built-in risky rule: add `!` and its name, as the card shows it, in ⚙ → Risky commands… (e.g. `!pushes to a remote`; force-push stays flagged). The file lists every built-in rule name, and a risky card's hover text says how to turn its rule off.
+
 ## 0.25.0
 - More built-in risky commands: any `git push`, publishing (`docker push`, `npm publish`, `gh pr merge`…), production hosts (`ssh` / `psql` / `mysql`… to anything named prod or production), more Kubernetes changes (`exec`, `label`, `rollout restart`…), Argo CD sync, Terraform state changes, AWS / Google Cloud / Azure changes, SQL writes (INSERT, UPDATE … SET, ALTER, CREATE, GRANT…), SQL files, database migrations (Alembic, Rails, Prisma, Django, Flyway…), Redis and MongoDB writes, and HTTP write requests (`curl -X POST/PUT/PATCH/DELETE`).
 - ⚙ → **Allow from the panel**: turn it off and every prompt shows only **Go to <terminal>** and **Deny**. The permission hook refuses every allow while it's off.

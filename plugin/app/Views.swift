@@ -252,7 +252,8 @@ struct PermissionCard: View {
                         .foregroundColor(.white.opacity(0.6))
                 } else if let why = perm.riskReason {
                     ReplyButton(title: "Review in \(store.caps(s).app) ↗", color: .orange) { store.jump(s) }
-                        .tip("Risky (\(why)): Spyglass doesn't approve these with one click. Read it and answer in \(store.caps(s).app).")
+                        .tip("Risky (\(why)): Spyglass doesn't approve these with one click. Read it and answer in \(store.caps(s).app). "
+                             + (Risk.names.contains(why) ? "To stop flagging these, add “!\(why)” in ⚙ → Risky commands…" : "This is one of your rules in ⚙ → Risky commands…"))
                     ReplyButton(title: "Deny", color: .white.opacity(0.75)) { store.reply(s, approve: false) }
                         .tip("Decline it (same as pressing Esc)")
                 } else if !store.panelAllow {

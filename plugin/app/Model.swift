@@ -244,8 +244,10 @@ enum Risk {
     static func reason(tool: String?, command: String) -> String? {
         guard !command.isEmpty else { return nil }
         let range = NSRange(command.startIndex..., in: command)
-        if tool == "Bash" || tool == nil, let r = compiled.first(where: { $0.0.firstMatch(in: command, range: range) != nil }) { return r.1 }
-        return custom().first { $0.matches(command) }.map { $0.reason }
+        let mine = custom()
+        if tool == "Bash" || tool == nil,
+           let r = compiled.first(where: { !mine.off.contains($0.1.lowercased()) && $0.0.firstMatch(in: command, range: range) != nil }) { return r.1 }
+        return mine.rules.first { $0.matches(command) }.map { $0.reason }
     }
 
     // MARK: Your own rules: ~/.claude/spyglass/risky.txt (⚙ → Risky commands…)
@@ -263,10 +265,19 @@ enum Risk {
     }
     /// One rule per line: plain text matches anywhere (any case); `re:` starts a regular expression;
     /// `  # reason` is shown on the card. Lines starting with # are comments. Bad patterns are skipped.
-    static func parse(_ text: String) -> [Rule] {
-        text.split(whereSeparator: \.isNewline).compactMap { raw in
+    /// Built-in rule names, as shown on the card ("pushes to a remote"); `!name` in risky.txt turns one off.
+    static var names: [String] { var seen = Set<String>(); return rules.map(\.1).filter { seen.insert($0).inserted } }
+
+    static func parse(_ text: String) -> (rules: [Rule], off: Set<String>) {
+        var off = Set<String>()
+        let rules: [Rule] = text.split(whereSeparator: \.isNewline).compactMap { raw in
             var line = raw.trimmingCharacters(in: .whitespaces)
             guard !line.isEmpty, !line.hasPrefix("#") else { return nil }
+            if line.hasPrefix("!") {   // turn off a built-in rule by its name; unknown names do nothing
+                let name = line.dropFirst().split(separator: "#").first.map { $0.trimmingCharacters(in: .whitespaces).lowercased() } ?? ""
+                if names.contains(where: { $0.lowercased() == name }) { off.insert(name) }
+                return nil
+            }
             var why: String?
             if let r = line.range(of: " #") {
                 why = line[r.upperBound...].trimmingCharacters(in: .whitespaces)
@@ -280,18 +291,20 @@ enum Risk {
             }
             return Rule(text: line, regex: nil, reason: reason)
         }
+        return (rules, off)
     }
-    private static var cache: (stamp: Date?, rules: [Rule]) = (nil, [])
+    private static var cache: (stamp: Date?, rules: [Rule], off: Set<String>) = (nil, [], [])
     private static let lock = NSLock()
     /// Re-read only when the file changes (the panel asks on every redraw).
-    static func custom() -> [Rule] {
+    static func custom() -> (rules: [Rule], off: Set<String>) {
         lock.lock(); defer { lock.unlock() }
         let stamp = (try? FileManager.default.attributesOfItem(atPath: file))?[.modificationDate] as? Date
-        if stamp == nil { cache = (nil, []); return [] }
-        if stamp != cache.stamp { cache = (stamp, parse((try? String(contentsOfFile: file, encoding: .utf8)) ?? "")) }
-        return cache.rules
+        if stamp == nil { cache = (nil, [], []); return ([], []) }
+        if stamp != cache.stamp { let p = parse((try? String(contentsOfFile: file, encoding: .utf8)) ?? ""); cache = (stamp, p.rules, p.off) }
+        return (cache.rules, cache.off)
     }
-    static let template = """
+    static var template: String { templateHead + names.map { "#   !\($0)\n" }.joined() }
+    static let templateHead = """
     # Spyglass: your own risky commands. A prompt that matches one of these gets no Allow button in the panel:
     # you read it and answer it in the terminal. The built-in list (rm -r, sudo, force-push, kubectl / Helm /
     # Terraform / cloud changes, pushes, SQL and database changes, production hosts, curl | sh…) always applies too.
@@ -307,6 +320,10 @@ enum Risk {
     # --context production       # production cluster
     # .env                       # secrets file
     # re:git push .* (main|master)$   # pushes to the main branch
+    #
+    # Turn off a built-in rule with ! and its name, as the card shows it, e.g.
+    #   !pushes to a remote        ordinary git push is one-click again (force-push stays flagged)
+    # Built-in rules (remove the leading # to turn one off):
 
     """
     /// ⚙ → "Allow from the panel": off means every prompt offers only Go to the tab and Deny.
@@ -323,6 +340,11 @@ enum Risk {
 
     /// Creates the file with instructions the first time, then returns its path.
     static func ensureFile() -> String {
+        // A file holding only an older version of these instructions (no rules yet) gets the current ones.
+        if let t = try? String(contentsOfFile: file, encoding: .utf8), !t.contains("Built-in rules (remove"),
+           t.split(whereSeparator: \.isNewline).allSatisfy({ $0.trimmingCharacters(in: .whitespaces).isEmpty || $0.hasPrefix("#") }) {
+            try? template.write(toFile: file, atomically: true, encoding: .utf8)
+        }
         if !FileManager.default.fileExists(atPath: file) {
             try? FileManager.default.createDirectory(atPath: (file as NSString).deletingLastPathComponent, withIntermediateDirectories: true)
             try? template.write(toFile: file, atomically: true, encoding: .utf8)

@@ -99,4 +99,16 @@ record "$req"; k=$(key)
 out=$(hook "$req"); wait $a
 eq "Allow off: allow refused, deny taken" "deny" "$(jq -r '.hookSpecificOutput.decision.behavior' <<<"$out")"
 rm -f "$SPYGLASS_HOME/panel-allow-off" "$SPYGLASS_HOME/answers/s.json"
+# Turning off a built-in rule: "!name" as the card shows it (any case); unknown names do nothing.
+printf '!Pushes to a remote   # we push all day\n!not a real rule\n' > "$SPYGLASS_HOME/risky.txt"
+eq "built-in rule turned off" "" "$(risky "git push origin main")"
+eq "force-push stays flagged" "force-push" "$(risky "git push --force origin main")"
+eq "other built-in rules still apply" "recursive delete" "$(risky "rm -rf build")"
+preq='{"session_id":"s","hook_event_name":"PermissionRequest","tool_name":"Bash","tool_input":{"command":"git push origin main"}}'
+record "$preq"; k=$(key)
+( sleep 0.3; answer "$k" allow ) & a=$!
+out=$(hook "$preq"); wait $a
+eq "turned-off rule: Allow works again" "allow" "$(jq -r '.hookSpecificOutput.decision.behavior' <<<"$out")"
+rm -f "$SPYGLASS_HOME/risky.txt" "$SPYGLASS_HOME/answers/s.json"
+eq "rule back when the line goes" "pushes to a remote" "$(risky "git push origin main")"
 finish
