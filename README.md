@@ -27,6 +27,7 @@ Running several Claude Code sessions at once? Spyglass keeps a small always-on-t
 - **Self-check**: a session started after installing Spyglass that isn't reporting through its hooks gets a ⚠︎, and `/spyglass:doctor` says what's wrong
 - **Quiet sessions**: if a session's hooks stop reporting while its conversation keeps moving, the row gets a ⚠︎ after 5 minutes and stops claiming "working" after 30, so a stale row never looks current
 - **Risky commands never get one click**: deletes, force-pushes, production hosts, cluster and cloud changes and the like show a warning with only Review and Deny. The lock in the header turns Allow off for every prompt
+- **Remote Control per row**: a small phone icon on each row, green with radio waves when that session is connected to Remote Control (Claude Code's own phone link: the session shows up in the Claude mobile app). Click to connect or disconnect an idle or finished session. In iTerm2 it does the whole thing; in Cursor / VS Code and Terminal it connects the same way, but to disconnect it opens Claude Code's menu and you pick **Disconnect this session** (Spyglass can't see those screens, so it won't press keys blind)
 - **Hover for context**: how long it has been working or waiting, last prompt, folder and branch, model, context, tokens, and which tab it lives in
 - **Compact view**: one line per session, grouped by repo; rows that need you stay full size
 - **Collapsed, it still tells you what rang**: under the header, one line for each session that needs you or just finished. Click a "Needs you" line to open it in place and answer; click a "Done" line to jump
@@ -43,6 +44,7 @@ Running several Claude Code sessions at once? Spyglass keeps a small always-on-t
 | **Switch model** (Opus, Sonnet, Haiku) | asks you to confirm, types `/model`, answers Claude Code's "Switch model?" prompt, and leaves your default model for new sessions unchanged |
 | **Rename** (pencil on hover) | runs `/rename` and renames the terminal tab to match |
 | **Resume** an ended session | opens a new tab in the same terminal and runs `claude --resume` in its folder |
+| **Connect / disconnect Remote Control** (phone icon on a row) | idle or finished sessions only; connecting types `/remote-control`; disconnecting in iTerm2 opens its menu and picks Disconnect after checking the menu is on screen, elsewhere it opens the menu for you to pick |
 | **Jump** (click the row, or ↗) | brings that exact tab to the front |
 | **Allow once / Deny from your phone** (away mode) | while you're away, what needs you goes to a private Telegram chat; Allow once / Deny buttons there answer permission prompts. Risky commands only get Deny. See [Away mode](#away-mode) |
 
@@ -135,7 +137,7 @@ Step away from the Mac and still unblock your sessions. With away mode on, a per
 
 1. Create a bot: message @BotFather in Telegram, `/newbot`, copy the token.
 2. In Claude Code run `/spyglass:away setup` and follow it: it has you run `! "$HOME/.claude/spyglass/Spyglass" away setup` yourself, so the token is typed hidden and never enters a Claude conversation. Message your new bot once so Spyglass learns your chat.
-3. Switch it on with the phone button in the panel header, or `Spyglass away on`. By default it also turns itself on when the screen locks or after 10 idle minutes, and off when you're back.
+3. Switch it on with the paper-plane button in the panel header, or `Spyglass away on`. By default it also turns itself on when the screen locks or after 10 idle minutes, and off when you're back.
 
 It follows the same rules as the panel: risky commands get no Allow (only Deny), the header lock turns Allow off for the phone too, a button works only for the prompt it was sent for and for one hour, and only your chat can answer. Settings in `~/.claude/spyglass/away.json`: `"finished": true` also pings when a session finishes, `"auto": false` turns the automatic switch off, `"idle_minutes"`. Telegram bot chats aren't end-to-end encrypted: see [SECURITY.md](SECURITY.md).
 

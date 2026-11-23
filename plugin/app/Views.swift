@@ -177,6 +177,7 @@ struct Row: View {
                     Text(statusLine.0).font(.system(size: 11, weight: .semibold)).foregroundColor(statusLine.1)
                         .lineLimit(1).truncationMode(.tail).layoutPriority(0).tip(store.stateLine(s))
                     Spacer(minLength: 4)
+                    RemoteChip(s: s, store: store).layoutPriority(1)
                     ModelPicker(s: s, store: store).layoutPriority(1)
                     if let c = s.ctx {
                         if s.contextFull {
@@ -194,6 +195,10 @@ struct Row: View {
                     }
                 }
                 .font(.system(size: 11, weight: .semibold)).lineLimit(1)
+                if let c = store.remoteChanges[s.id], let line = c.failed ?? c.note {
+                    Text("⚠︎ " + line).font(.system(size: 11, weight: .semibold)).foregroundColor(.orange)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
                 if s.state == "waiting", s.question == nil, s.permission == nil, let a = s.asked {
                     AskedCard(s: s, asked: a, store: store)
                 } else if s.state == "waiting", (s.question != nil && !store.caps(s).pressKeys)
@@ -409,6 +414,24 @@ struct ModelConfirm: View {
     }
 }
 
+/// Remote Control on this session: green phone-link icon when connected; click to connect / disconnect.
+struct RemoteChip: View {
+    let s: Session
+    @ObservedObject var store: Store
+    var body: some View {
+        let c = store.remoteChanges[s.id]
+        let on = s.remote ?? false
+        let color: Color = (c?.failed != nil || c?.note != nil) ? .orange : c != nil ? .white.opacity(0.5) : on ? accent : .white.opacity(0.35)
+        let symbol = c?.failed != nil ? "exclamationmark.triangle" : on ? "iphone.radiowaves.left.and.right" : "iphone"
+        Button { store.toggleRemote(s) } label: {
+            Image(systemName: symbol).font(.system(size: 11, weight: .semibold)).foregroundColor(color)
+        }
+        .buttonStyle(.plain)
+        .disabled(!store.canToggleRemote(s) && c == nil)
+        .tip(store.remoteHelp(s))
+    }
+}
+
 struct ModelPicker: View {
     let s: Session
     @ObservedObject var store: Store
@@ -613,6 +636,7 @@ struct CompactRow: View {
             Text(s.displayTitle).font(.system(size: 12, weight: .semibold)).foregroundColor(.white.opacity(0.9))
                 .lineLimit(1).truncationMode(.tail).layoutPriority(0)
             Spacer(minLength: 4)
+            if !why && (hover || s.remote == true || store.remoteChanges[s.id] != nil) { RemoteChip(s: s, store: store) }
             if why {
                 Group {
                     if s.state == "waiting" { Text("Needs you").foregroundColor(.orange) }
@@ -741,7 +765,7 @@ struct SpyglassView: View {
                                : "Allow from the panel is off: prompts offer only Go to tab or Deny. Click to turn it back on",
                            tint: store.panelAllow ? .white.opacity(0.75) : .orange) { store.setPanelAllow(!store.panelAllow) }
                 // Away mode: what needs you goes to your phone. Green = on; the hover says why when it's on by itself.
-                IconButton(symbol: store.awayActive ? "iphone.radiowaves.left.and.right" : "iphone",
+                IconButton(symbol: store.awayActive ? "paperplane.fill" : "paperplane",
                            help: store.awayActive
                                ? (store.away ? "Away mode is on: what needs you goes to your phone. Click to turn it off"
                                              : "Away mode switched on by itself (screen locked or idle). Click to turn it off until you're back")

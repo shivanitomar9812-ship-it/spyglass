@@ -330,7 +330,7 @@ extension CLI {
         let cfg = AwayConfig(token: token, chatId: chat)
         cfg.save()
         _ = tg.callSync("sendMessage", ["chat_id": chat, "text": "Spyglass is connected. In away mode, what needs you will be sent here, and only this chat can answer."])
-        print("Done. A test message is on its way. Turn away mode on with the phone button in the panel header, or: Spyglass away on")
+        print("Done. A test message is on its way. Turn away mode on with the paper-plane button in the panel header, or: Spyglass away on")
         print("Only this chat can answer. Optional settings in \(AwayConfig.file): \"finished\": true (ping when a session finishes), \"auto\": false, \"idle_minutes\".")
         return 0
     }

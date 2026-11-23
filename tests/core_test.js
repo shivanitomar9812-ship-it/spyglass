@@ -25,7 +25,8 @@ const sent = () => log.filter(x => x[0] === 'send').map(x => x[2]);
   let r = await send('/model haiku');
   const C = '\x15\x7f\x15\x7f\x15\x7f\x15';
   eq('model typed after clearing any draft, Enter separate', [C + '/model haiku', '\r'], sent()); eq('model ok', true, r.ok);
-  for (const bad of ['rm -rf ~', '/model gpt', 'constructor', '/rename a\nb', '/rename x\u001b[2J']) {
+  r = await send('/remote-control'); eq('remote-control typed', [C + '/remote-control', '\r'], sent()); eq('remote-control ok', true, r.ok);
+  for (const bad of ['rm -rf ~', '/model gpt', '/remote-control disconnect', '/remote-control; rm x', 'constructor', '/rename a\nb', '/rename x\u001b[2J']) {
     r = await send(bad); eq(`refused ${JSON.stringify(bad)}`, [false, []], [r.ok, sent()]);
   }
   await send('key:approve'); eq('approve = 1', ['1'], sent());

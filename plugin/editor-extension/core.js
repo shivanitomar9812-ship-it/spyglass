@@ -7,7 +7,7 @@ const os = require('os');
 
 const dir = path.join(os.homedir(), '.claude', 'spyglass');
 const file = name => path.join(dir, name);
-const ALLOWED = /^\/model (opus|sonnet|haiku)$/;
+const ALLOWED = /^\/(model (opus|sonnet|haiku)|remote-control)$/;
 const NAME = '[^\\x00-\\x1f\\x7f]{1,80}';   // one line, no control characters
 const RENAME = new RegExp(`^/rename ${NAME}$`);
 const TAB_NAME = new RegExp(`^${NAME}$`);

@@ -58,6 +58,9 @@ final class Store: ObservableObject {
     @Published var replies: [String: Reply] = [:]
     /// Option picked for a question, in flight (or just failed): (label, question at, since, failed).
     @Published var answers: [String: Rename] = [:]
+    /// Remote Control connects / disconnects in flight (or just failed, or waiting for you to pick in the menu), by session id.
+    struct RemoteChange: Equatable { var want: Bool; var since: Double; var failed: String?; var note: String? }
+    @Published var remoteChanges: [String: RemoteChange] = [:]
     /// Plan limits (freshest statusline that reported them); empty on API-key plans, where $ is the real bill.
     @Published var limits: [LimitWindow] = []
     let tokenCounter = TokenCounter(home: Store.home)
@@ -119,6 +122,7 @@ final class Store: ObservableObject {
             default: s.status = "idle"; s.activity = "Idle"
             }
             s.turnStarted = s.updated
+            s.remote = ((o["bridgeSessionId"] as? String) ?? "").isEmpty ? false : true
             if (o["nameSource"] as? String) != "derived", let n = o["name"] as? String, !n.isEmpty {
                 s.title = n; s.titleSource = "custom"
             }
@@ -319,6 +323,7 @@ final class Store: ObservableObject {
             if var h = merged[r.id] {
                 h.pid = h.pid ?? r.pid
                 h.entrypoint = h.entrypoint ?? r.entrypoint
+                h.remote = r.remote   // only the registry knows
                 if h.title == nil { h.title = r.title }
                 // Registry is fresher (e.g. hooks not loaded yet, or turn ended): trust its status.
                 if (r.updated ?? 0) > (h.updated ?? 0) + 2, r.state != h.state, !(h.state == "done" && r.state == "idle") {
@@ -466,6 +471,7 @@ final class Store: ObservableObject {
         if awayFlag != away { away = awayFlag }   // `Spyglass away on|off` from a terminal
         awayBridge.sync(out)
         resolveSwitches(out, now: now)
+        resolveRemote(out, now: now)
         resolveReplies(out, now: now)
         resolveRenames(out, now: now)
         if !textReplies.isEmpty {
@@ -608,6 +614,50 @@ final class Store: ObservableObject {
             }
         }
         do { try p.run() } catch { onFail(1) }
+    }
+
+    private func resolveRemote(_ live: [Session], now: Double) {
+        guard !remoteChanges.isEmpty else { return }
+        var next = remoteChanges
+        for (id, c) in remoteChanges {
+            guard let s = live.first(where: { $0.id == id }) else { next[id] = nil; continue }
+            if (s.remote ?? false) == c.want { next[id] = nil }
+            else if c.failed != nil { if now - c.since > 8 { next[id] = nil } }
+            else if c.note != nil { if now - c.since > 120 { next[id] = nil } }   // waiting for the menu pick
+            else if now - c.since > 20 { next[id] = RemoteChange(want: c.want, since: now, failed: "Didn't change: check the session's terminal", note: nil) }
+        }
+        if next != remoteChanges { remoteChanges = next }
+    }
+
+    /// Whether Spyglass can connect / disconnect Remote Control for this session: idle or finished, in a terminal it can type into.
+    func canToggleRemote(_ s: Session) -> Bool { (s.state == "idle" || s.state == "done") && caps(s).typeText && s.pid != nil && remoteChanges[s.id] == nil }
+
+    /// Types `/remote-control` (connect), or opens its menu and picks Disconnect (iTerm2; elsewhere you pick, see send.sh).
+    func toggleRemote(_ s: Session) {
+        guard canToggleRemote(s) else { return }
+        let want = !(s.remote ?? false)
+        let now = Date().timeIntervalSince1970
+        remoteChanges[s.id] = RemoteChange(want: want, since: now, failed: nil, note: nil)
+        runSend(s, want ? "rc:on" : "rc:off", extra: [s.id]) { [weak self] code in
+            let t = Date().timeIntervalSince1970
+            if code == 5 {
+                self?.remoteChanges[s.id] = RemoteChange(want: want, since: t, failed: nil,
+                    note: "Menu open in \(self?.terminalLabel(s) ?? "the terminal"): pick Disconnect this session")
+                return
+            }
+            let why = code == 2 ? Store.noReply(s) : code == 4 ? "The session is busy: try when it's idle"
+                : "Didn't change: check the session's terminal"
+            self?.remoteChanges[s.id] = RemoteChange(want: want, since: t, failed: why, note: nil)
+        }
+    }
+
+    func remoteHelp(_ s: Session) -> String {
+        if let c = remoteChanges[s.id] { return c.failed ?? c.note ?? (c.want ? "Connecting Remote Control…" : "Disconnecting Remote Control…") }
+        let on = s.remote ?? false
+        if !caps(s).typeText { return "Remote Control is \(on ? "on" : "off"). Spyglass can't type into \(caps(s).app): use /remote-control there" }
+        if !(s.state == "idle" || s.state == "done") { return "Remote Control is \(on ? "on" : "off"). It can be changed once the session is idle" }
+        return on ? "Remote Control is on: this session is in the Claude mobile app. Click to disconnect"
+                  : "Remote Control is off. Click to connect this session to the Claude mobile app"
     }
 
     private func resolveSwitches(_ live: [Session], now: Double) {

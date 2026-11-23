@@ -25,6 +25,7 @@ struct Session: Identifiable, Codable, Equatable {
     var source: String?          // "registry" when known only from Claude Code's session registry
     var permission: Permission?  // pending permission prompt (PermissionRequest hook)
     var question: Question?      // pending AskUserQuestion
+    var remote: Bool?            // connected to Remote Control (Claude Code's registry has a bridgeSessionId)
     var asked: Asked?            // the turn ended with a question for you (in plain text)
     var lastLine: String?        // last line of Claude's final reply (finished turns)
     var hooks: String?           // Spyglass version of the hooks this session runs

@@ -3,8 +3,9 @@
 # [session id, permission timestamp]. Commands: "/model opus|sonnet|haiku" (confirms Claude Code's "Switch model?" dialog; the user
 # already confirmed in Spyglass), or "key:approve" / "key:deny" to answer a permission prompt (sent only while that same prompt is still
 # pending), "reply:<text>" to answer a question Claude asked in plain text (only while it waits), "answer:<1-4>" to pick an option of Claude's pending question (same guard), or "rename:<name>" to /rename the
-# session and its terminal tab. Exit: 0 done, 1 failed / didn't apply,
-# 2 terminal not supported, 3 not allowed, 4 prompt gone.
+# session and its terminal tab, or "rc:on" / "rc:off" to connect / disconnect Remote Control (idle sessions only). Exit: 0 done,
+# 1 failed / didn't apply, 2 terminal not supported, 3 not allowed, 4 prompt gone or session busy,
+# 5 rc:off only: the Remote Control menu is open, pick "Disconnect this session" there (this terminal can't be driven safely).
 here="$(cd "$(dirname "$0")" && pwd)"
 SG="$here/../bin/Spyglass"; [ -x "$SG" ] || SG="${SPYGLASS_HOME:-$HOME/.claude/spyglass}/Spyglass"   # JSON helper (no jq)
 app="$1"; tty="$2"; bundle="$3"; cws="$4"; csf="$5"; cpid="$6"; cmd="$7"; sid="${8:-}"; at="${9:-}"
@@ -34,6 +35,11 @@ case "$cmd" in
     sf="$home/sessions/$sid.json"
     [ -z "$("$SG" json get "$sf" .permission)" ] && [ -z "$("$SG" json get "$sf" .question)" ] || exit 4
     case "$("$SG" json get "$sf" .status)" in working) exit 4 ;; esac ;;
+  rc:on|rc:off)
+    kind=rc; want="${cmd#rc:}"
+    [ -n "$sid" ] && [ -n "$cpid" ] || exit 3
+    # Only an idle or finished session: /remote-control typed into a working one would queue behind the turn.
+    case "$("$SG" json get "$home/sessions/$sid.json" .status)" in working|waiting) exit 4 ;; esac ;;
   rename:*)
     kind=rename; name="${cmd#rename:}"
     # One line, 1-80 chars, no control characters: it is typed after "/rename " into Claude's input box.
@@ -129,6 +135,14 @@ OSA
       key:deny)    send='tell s to write text (ASCII character 27) newline no'
                    check='(contents of s contains "Do you want") and (contents of s contains "Esc to cancel")' ;;
       key:enter)   send='tell s to write text ""' ;;
+      # The Remote Control menu (/remote-control while connected). Every key checks the menu is on screen, and Enter
+      # only fires with "Disconnect this session" highlighted, so a missed menu never sends a stray Enter or arrow.
+      key:up)      send='tell s to write text ((ASCII character 27) & "[A") newline no'
+                   check='(contents of s contains "Disconnect this session") and (contents of s contains "Esc to close")' ;;
+      key:select)  send='tell s to write text ""'
+                   check='(contents of s contains "❯ Disconnect this session")' ;;
+      key:close)   send='tell s to write text (ASCII character 27) newline no'
+                   check='(contents of s contains "Esc to close") and (contents of s contains "Disconnect this session")' ;;
       key:[1-4])   send='tell s to write text (text 5 of (item 2 of argv)) newline no'
                    check='(contents of s contains "Enter to select")' ;;
       tabname:*)   send='set name of s to (text 9 thru -1 of (item 2 of argv))' ;;
@@ -179,6 +193,39 @@ OSA
   fi
   return 2
 }
+
+if [ "$kind" = rc ]; then
+  reg="${SPYGLASS_CLAUDE_DIR:-$HOME/.claude}/sessions/$cpid.json"
+  connected() { [ -n "$("$SG" json get "$reg" .bridgeSessionId)" ]; }
+  settle() {   # settle <connected|gone> <tenths of a second>: wait for Claude Code to record the change
+    for _ in $(seq 1 "$2"); do
+      if [ "$1" = connected ]; then connected && return 0; else connected || return 0; fi
+      sleep 0.1
+    done
+    return 1
+  }
+  if [ "$want" = on ]; then
+    connected && exit 0
+    deliver "/remote-control" || exit $?
+    settle connected "${SPYGLASS_RC_WAIT:-100}" && exit 0 || exit 1
+  fi
+  connected || exit 0
+  # Disconnect is a menu: type /remote-control, then Up, Up, Enter on "Disconnect this session". Only iTerm2 can be read,
+  # so only there are the keys sent (each checks the menu); elsewhere Spyglass opens the menu and the person picks.
+  deliver "/remote-control" || exit $?
+  [ "$app" = iTerm.app ] || exit 5
+  up=0
+  for _ in $(seq 1 25); do   # the menu takes a moment to draw
+    deliver key:up; r=$?
+    if [ $r = 0 ]; then up=1; break; fi
+    [ $r = 4 ] || exit $r
+    sleep 0.2
+  done
+  [ $up = 1 ] || exit 1
+  sleep 0.3; deliver key:up || { deliver key:close; exit 1; }
+  sleep 0.3; deliver key:select || { deliver key:close; exit 1; }
+  settle gone "${SPYGLASS_RC_WAIT:-100}" && exit 0 || exit 1
+fi
 
 if [ "$kind" = rename ]; then
   transcript=$(ls "$HOME"/.claude/projects/*/"$sid".jsonl 2>/dev/null | head -1)

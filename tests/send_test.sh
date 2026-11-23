@@ -99,4 +99,41 @@ echo '{"status":"done","asked":{"text":"Q?","at":1}}' > "$SPYGLASS_HOME/sessions
 eq "Terminal: reply typed"      "terminal say:yes|0"     "$(out=$(launchd bash "$SCRIPTS/send.sh" Apple_Terminal /dev/ttys001 "" "" "" 123 "reply:yes" rt 2>/dev/null); rc=$?; echo "${out%%$'\n'*}|$rc")"
 unset SPYGLASS_SEND_ROUTE
 
+# Remote Control: /remote-control connects; disconnecting is a menu (Up, Up, Enter), driven only where the menu can be checked.
+reg="$FAKE_HOME/.claude/sessions/1.json"; mkdir -p "$(dirname "$reg")"
+echo '{"pid":1,"sessionId":"rc1"}' > "$reg"; echo '{"status":"idle"}' > "$SPYGLASS_HOME/sessions/rc1.json"
+rc_send() { launchd env SPYGLASS_RC_WAIT=15 bash "$SCRIPTS/send.sh" "${APP:-vscode}" "${TTY_:-}" "" "" "" 1 "$@"; }
+connect()    { echo '{"pid":1,"sessionId":"rc1","bridgeSessionId":"session_x"}' > "$reg"; }
+disconnect() { echo '{"pid":1,"sessionId":"rc1"}' > "$reg"; }
+: > "$SPYGLASS_SEND_LOG"; rc_send rc:maybe rc1 >/dev/null 2>&1; eq "rc:maybe refused" 3 $?
+rc_send rc:on >/dev/null 2>&1; eq "rc:on without a session refused" 3 $?
+echo '{"status":"working"}' > "$SPYGLASS_HOME/sessions/rc1.json"
+rc_send rc:on rc1 >/dev/null 2>&1; eq "rc:on refused while working" 4 $?
+echo '{"status":"waiting"}' > "$SPYGLASS_HOME/sessions/rc1.json"
+rc_send rc:off rc1 >/dev/null 2>&1; eq "rc:off refused while waiting" 4 $?
+eq "nothing typed for refused rc" "" "$(typed)"
+echo '{"status":"idle"}' > "$SPYGLASS_HOME/sessions/rc1.json"
+# Connect: types /remote-control and waits for Claude Code to record the connection.
+disconnect; : > "$SPYGLASS_SEND_LOG"
+( sleep 0.4; connect ) & w=$!; rc_send rc:on rc1; rc=$?; wait $w
+eq "rc:on exit" 0 $rc; eq "rc:on typed the command" "/remote-control|" "$(typed)"
+# Already connected: no second /remote-control (that would open the menu).
+: > "$SPYGLASS_SEND_LOG"; rc_send rc:on rc1; eq "rc:on when connected: ok" 0 $?; eq "...types nothing" "" "$(typed)"
+# Never connects: reported as failed.
+disconnect; : > "$SPYGLASS_SEND_LOG"; rc_send rc:on rc1 >/dev/null 2>&1; eq "rc:on that never connects fails" 1 $?
+# Disconnect when it isn't connected: nothing to do, and nothing typed.
+disconnect; : > "$SPYGLASS_SEND_LOG"; rc_send rc:off rc1; eq "rc:off when not connected: ok" 0 $?; eq "...types nothing" "" "$(typed)"
+# Disconnect in Cursor / VS Code (can't read the screen): opens the menu only, no blind arrow keys. Exit 5.
+connect; : > "$SPYGLASS_SEND_LOG"; rc_send rc:off rc1 >/dev/null 2>&1; eq "rc:off in Cursor opens the menu (exit 5)" 5 $?
+eq "...and presses no keys" "/remote-control|" "$(typed)"
+# Disconnect in Terminal.app: same.
+connect; : > "$SPYGLASS_SEND_LOG"; APP=Apple_Terminal TTY_=/dev/ttys001 rc_send rc:off rc1 >/dev/null 2>&1; eq "rc:off in Terminal opens the menu (exit 5)" 5 $?
+eq "...and presses no keys" "/remote-control|" "$(typed)"
+# Disconnect in iTerm2: the menu, Up, Up, Enter on "Disconnect this session".
+connect; : > "$SPYGLASS_SEND_LOG"
+( sleep 0.6; disconnect ) & w=$!; APP=iTerm.app TTY_=/dev/ttys001 rc_send rc:off rc1; rc=$?; wait $w
+eq "rc:off in iTerm exit" 0 $rc; eq "rc:off in iTerm keys" "/remote-control|key:up|key:up|key:select|" "$(typed)"
+# Disconnect that doesn't take: failed.
+connect; : > "$SPYGLASS_SEND_LOG"; APP=iTerm.app TTY_=/dev/ttys001 rc_send rc:off rc1 >/dev/null 2>&1; eq "rc:off that doesn't take fails" 1 $?
+
 finish

@@ -28,6 +28,8 @@ session ask    '{"title":"Asks a question","titleSource":"ai","status":"waiting"
 # Old hooks recorded questions as permission prompts: never show Allow/Deny for them.
 session oldask '{"title":"Old hook question","titleSource":"ai","status":"waiting","permission":{"tool":"AskUserQuestion","detail":"","at":2}}'
 session asked  '{"title":"Asked in text","titleSource":"ai","status":"waiting","activity":"Asked you: Shall I continue?","asked":{"text":"Shall I continue with the welcome card?","at":6}}'
+session rcon   '{"title":"Remote on","titleSource":"ai","status":"done","remote":true}'
+session rcoff  '{"title":"Remote off","titleSource":"ai","status":"idle"}'
 session perm   '{"title":"Needs approval","titleSource":"ai","status":"waiting","activity":"Wants to use Bash","permission":{"tool":"Bash","detail":"rm -rf build","at":1}}'
 lim="{\"five_hour\":{\"pct\":17,\"resets\":$((now + 3600))},\"seven_day\":{\"pct\":93,\"resets\":$((now + 400000))}}"
 echo "{\"model\":\"Opus 5.5\",\"ctx\":91,\"ctxTokens\":910000,\"ctxSize\":1000000,\"cost\":3300.79,\"limits\":$lim,\"updated\":$now}" > "$SPYGLASS_HOME/stats/ctx.json"
@@ -45,6 +47,12 @@ echo "{\"id\":\"gone\",\"pid\":999999,\"cwd\":\"/tmp\",\"title\":\"Gone one\",\"
 
 out=$(SPYGLASS_NO_REGISTRY=1 "$BIN" --selftest 2>/dev/null)
 row() { echo "$out" | jq -r --arg id "$1" "select(.id == \$id) | $2"; }
+# Remote Control: the registry's bridgeSessionId shows as on; idle or finished sessions can be toggled, busy ones can't.
+eq "remote on" "true|true" "$(row rcon '"\(.remote)|\(.canRemote)"')"
+eq "remote on: hover says click to disconnect" "true" "$(row rcon '.remoteHelp | contains("Click to disconnect")')"
+eq "remote off: hover says click to connect" "true|true" "$(row rcoff '"\(.canRemote)|\(.remoteHelp | contains("Click to connect"))"')"
+eq "remote can't change while waiting on you" "false" "$(row perm .canRemote)"
+eq "remote can't change while working" "false" "$(row ctx .canRemote)"
 # Escaped bug (0.9.0): the idle reminder showed as "Needs you" (older hooks recorded it as waiting).
 eq "idle reminder shows done" "done" "$(row idle .state)"
 # Escaped bug (0.16.0): Claude Code's status symbol in tab titles ("✳ Seg Lifecycle") showed in names.
@@ -148,7 +156,7 @@ for f in "$SPYGLASS_HOME"/stats/*.json; do jq --argjson l "$lim" '.limits = $l' 
 # Compact view: rows that need you (or are mid-action) stay full; the rest are one line, grouped by repo (6+ sessions).
 out3=$(SPYGLASS_NO_REGISTRY=1 "$BIN" --selftest --state '{"confirming:tab":"sonnet","compact":"true"}' 2>/dev/null)
 eq "compact: full rows" '["ask","asked","ctx","oldask","perm","tab"]' "$(echo "$out3" | jq -c 'select(.compact) | .compact.full | sort')"
-eq "compact: groups by repo" '[{"name":"k8s-apps","rows":["custom","ver"]},{"name":"repo","rows":["idle"]}]' \
+eq "compact: groups by repo" '[{"name":"k8s-apps","rows":["custom","ver"]},{"name":"repo","rows":["idle","rcoff","rcon"]}]' \
   "$(echo "$out3" | jq -c 'select(.compact) | .compact.groups | map(.rows |= sort)')"
 
 # Every place Claude runs: what Spyglass offers there (app | can type text | can press keys).
