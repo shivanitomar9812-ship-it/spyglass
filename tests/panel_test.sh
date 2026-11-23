@@ -49,6 +49,14 @@ row() { echo "$out" | jq -r --arg id "$1" "select(.id == \$id) | $2"; }
 eq "idle reminder shows done" "done" "$(row idle .state)"
 # Escaped bug (0.16.0): Claude Code's status symbol in tab titles ("✳ Seg Lifecycle") showed in names.
 eq "Cursor tab name used, status symbol stripped" "Seg Lifecycle" "$(row tab .name)"
+# Search: every word must match (tab name, title, folder, model, activity); waiting sessions are never hidden silently.
+q() { SPYGLASS_NO_REGISTRY=1 "$BIN" --selftest --state "{\"query\":\"$1\"}" 2>/dev/null | jq -c "select(.shown) | $2"; }
+eq "search by folder" '["custom","ver"]' "$(q k8s '.shown | sort')"
+eq "search by tab name, several words" '["tab"]' "$(q 'seg LIFE' '.shown')"
+eq "no match" '[]' "$(q zzz-none '.shown')"
+eq "waiting sessions hidden by a search are counted" "true" "$(q k8s '.hiddenWaiting > 0')"
+eq "no search: nothing hidden" "0" "$(q '' '.hiddenWaiting')"
+eq "search finds ended sessions" '["gone"]' "$(q gone '.shownEnded')"
 # Escaped (0.27.1): a session renamed "Tower" kept that name after its Cursor tab was renamed "Spyglass".
 eq "the tab's name wins over an older rename" "Some tab" "$(row custom .name)"
 # Escaped bug (0.9.0): "2.1.330" (Claude Code's process title) was taken as a name you gave the tab.

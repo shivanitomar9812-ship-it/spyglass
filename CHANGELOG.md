@@ -2,6 +2,9 @@
 
 All releases so far were made on 2026-11-22. Versions before 0.16.0 were released under the name Tower. Bugs that escaped to a release, and the check that now catches each, are in [HARNESS.md](HARNESS.md).
 
+## 0.29.0
+- Search: with 5 or more sessions, a field above the list filters rows (and recently ended sessions) by tab name, folder, model or current activity. Several words narrow it; Esc clears. If the search hides sessions that need you, an orange line says so, with one click to show them.
+
 ## 0.28.0
 - A row always shows its terminal tab's name. Before, a session renamed earlier kept that name after you renamed its Cursor / VS Code tab, so the two disagreed. (Renaming from Spyglass renames the tab too, so they stay the same.)
 

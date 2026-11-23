@@ -446,6 +446,35 @@ struct ModelPicker: View {
 }
 
 /// ⚙ in the header: sounds, coming back, views, start at login, welcome.
+/// Filters the list as you type (shown from Store.searchFrom sessions). Esc clears.
+struct SearchField: View {
+    @ObservedObject var store: Store
+    @FocusState private var focused: Bool
+    var body: some View {
+        HStack(spacing: 6) {
+            Image(systemName: "magnifyingglass").font(.system(size: 11, weight: .semibold)).foregroundColor(.white.opacity(0.45))
+            if Store.snapshotMode {   // a TextField can't be drawn offscreen
+                Text(store.query.isEmpty ? "Search sessions" : store.query).font(.system(size: 12))
+                    .foregroundColor(.white.opacity(store.query.isEmpty ? 0.35 : 0.9))
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            } else {
+                TextField("Search sessions", text: $store.query)
+                    .textFieldStyle(.plain).font(.system(size: 12)).foregroundColor(.white)
+                    .focused($focused)
+                    .onExitCommand { store.query = ""; focused = false }
+            }
+            if store.searching {
+                Button { store.query = "" } label: {
+                    Image(systemName: "xmark.circle.fill").font(.system(size: 11)).foregroundColor(.white.opacity(0.45))
+                }.buttonStyle(.plain).tip("Clear the search")
+            }
+        }
+        .padding(.horizontal, 8).padding(.vertical, 5)
+        .background(RoundedRectangle(cornerRadius: 7).fill(Color.white.opacity(0.07)))
+        .tip("Filter by tab name, folder, model or what it's doing. Several words narrow it down · Esc clears")
+    }
+}
+
 struct SettingsMenu: View {
     @ObservedObject var store: Store
     var body: some View {
@@ -736,7 +765,18 @@ struct SpyglassView: View {
                 }
             }
             if !store.collapsed {
-                if store.sessions.isEmpty {
+                if store.sessions.count >= Store.searchFrom || store.searching { SearchField(store: store) }
+                if store.hiddenWaiting > 0 {
+                    Button { store.query = "" } label: {
+                        Text("\(store.hiddenWaiting) session\(store.hiddenWaiting == 1 ? " needs" : "s need") you (hidden by search) · Show")
+                            .font(.system(size: 11, weight: .semibold)).foregroundColor(.orange)
+                            .frame(maxWidth: .infinity, alignment: .leading).contentShape(Rectangle())
+                    }.buttonStyle(.plain).tip("Clear the search")
+                }
+                if store.searching && store.shown.isEmpty {
+                    Text("No sessions match “\(store.query.trimmingCharacters(in: .whitespaces))”").font(.system(size: 12))
+                        .foregroundColor(.white.opacity(0.5)).padding(.vertical, 6).frame(maxWidth: .infinity)
+                } else if store.sessions.isEmpty {
                     Text("No recent Claude sessions").font(.system(size: 12))
                         .foregroundColor(.white.opacity(0.5)).padding(.vertical, 10).frame(maxWidth: .infinity)
                 } else {
@@ -753,16 +793,16 @@ struct SpyglassView: View {
                             }
                         }
                     } else {
-                        ForEach(store.sessions) { Row(s: $0, store: store) }
+                        ForEach(store.shown) { Row(s: $0, store: store) }
                     }
                 }
-                if !store.ended.isEmpty {
+                if !store.shownEnded.isEmpty {
                     HStack(spacing: 6) {
                         Button { store.toggleEnded() } label: {
                             HStack(spacing: 5) {
                                 Image(systemName: store.showEnded ? "chevron.down" : "chevron.right")
                                     .font(.system(size: 9, weight: .bold))
-                                Text("Recently ended · \(store.ended.count)").font(.system(size: 11, weight: .semibold))
+                                Text("Recently ended · \(store.shownEnded.count)").font(.system(size: 11, weight: .semibold))
                             }.foregroundColor(.white.opacity(0.55)).contentShape(Rectangle())
                         }.buttonStyle(.plain)
                         Spacer()
@@ -771,7 +811,7 @@ struct SpyglassView: View {
                                 .font(.system(size: 11)).foregroundColor(.white.opacity(0.4))
                         }
                     }.padding(.top, 4)
-                    if store.showEnded { ForEach(store.ended) { EndedRow(s: $0, store: store) } }
+                    if store.showEnded || store.searching { ForEach(store.shownEnded) { EndedRow(s: $0, store: store) } }
                 }
                 if store.olderIdle > 0 {
                     Text("+ \(store.olderIdle) older idle session\(store.olderIdle == 1 ? "" : "s") (no activity in 12h)")

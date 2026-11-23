@@ -1131,7 +1131,27 @@ final class Store: ObservableObject {
     }
 
     /// Compact layout: full rows first, then one-line rows grouped by repo once there are 6+ sessions.
+    // MARK: Search (the field above the list, from searchFrom sessions)
+
+    static let searchFrom = 5
+    @Published var query = ""
+    var searching: Bool { !query.trimmingCharacters(in: .whitespaces).isEmpty }
+    /// Every word must appear (any case) in the tab name, title, folder, model or current activity.
+    func matches(_ s: Session) -> Bool {
+        let words = query.lowercased().split(whereSeparator: \.isWhitespace)
+        guard !words.isEmpty else { return true }
+        let hay = [s.displayTitle, s.title ?? "", s.tabName ?? "", (s.cwd as NSString?)?.lastPathComponent ?? "",
+                   s.model ?? "", s.activity ?? ""].joined(separator: " ").lowercased()
+        return words.allSatisfy { hay.contains($0) }
+    }
+    /// The rows the list shows.
+    var shown: [Session] { searching ? sessions.filter(matches) : sessions }
+    var shownEnded: [Session] { searching ? ended.filter(matches) : ended }
+    /// Sessions waiting on you that the search hides: never hidden silently.
+    var hiddenWaiting: Int { searching ? sessions.filter { $0.state == "waiting" && !matches($0) }.count : 0 }
+
     func compactLayout() -> (full: [Session], groups: [(name: String, rows: [Session])]) {
+        let sessions = shown
         let full = sessions.filter(needsFullRow)
         let rest = sessions.filter { !needsFullRow($0) }
         guard sessions.count >= 6 else { return (full, rest.isEmpty ? [] : [("", rest)]) }

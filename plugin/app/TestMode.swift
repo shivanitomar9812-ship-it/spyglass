@@ -27,6 +27,7 @@ import SwiftUI
             if k == "compact" { store.compact = v == "true" }
             if k == "welcome" { store.showWelcome = v == "true" }
             if k == "collapsed" { store.collapsed = v == "true" }
+            if k == "query" { store.query = v }
             if k.hasPrefix("peekOpen:") { store.peekOpen.insert(String(k.dropFirst(9))) }
             if ["soundDone", "soundNeeds", "autoShow"].contains(k) {
                 switch k { case "soundDone": store.soundDone = v == "true"; case "soundNeeds": store.soundNeeds = v == "true"; default: store.autoShow = v == "true" }
@@ -55,6 +56,10 @@ import SwiftUI
         if let d = try? JSONSerialization.data(withJSONObject: ["wakes": wakes]) { print(String(data: d, encoding: .utf8)!) }
         if let d = try? JSONSerialization.data(withJSONObject: ["peek": store.peek.map(\.id)]) { print(String(data: d, encoding: .utf8)!) }
         if let d = try? JSONSerialization.data(withJSONObject: ["peekOpen": Array(store.peekOpen).sorted()]) { print(String(data: d, encoding: .utf8)!) }
+        if let d = try? JSONSerialization.data(withJSONObject: ["shown": store.shown.map(\.id), "shownEnded": store.shownEnded.map(\.id),
+                                                                "hiddenWaiting": store.hiddenWaiting] as [String: Any], options: [.sortedKeys]) {
+            print(String(data: d, encoding: .utf8)!)
+        }
         print("{\"longestWaiting\":\"\(store.longestWaiting?.id ?? "")\"}")
         print("{\"waitedToday\":\(Int(store.waitedToday))}")
         for s in store.sessions {
