@@ -18,6 +18,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     var fit: (() -> Void)?
     var changes: AnyCancellable?
     var sigterm: DispatchSourceSignal?
+    var awayWatch: AwayWatch?
 
     func log(_ msg: String) {
         let url = Store.home.appendingPathComponent("spyglass.log")
@@ -56,6 +57,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     func applicationDidFinishLaunching(_ n: Notification) {
         if store.hotkeys { hotkeys.enable() }
         store.onHotkeysChanged = { [weak self] on in if on { self?.hotkeys.enable() } else { self?.hotkeys.disable() } }
+        awayWatch = AwayWatch(store: store)
         log("start pid \(ProcessInfo.processInfo.processIdentifier)")
         ProcessInfo.processInfo.disableAutomaticTermination("Spyglass panel stays open")
         ProcessInfo.processInfo.disableSuddenTermination()

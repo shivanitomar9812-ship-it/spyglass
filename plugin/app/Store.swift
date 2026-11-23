@@ -462,6 +462,9 @@ final class Store: ObservableObject {
         if watcher != nil { scheduleTick() }
         pruneParsed()
         if out != sessions { sessions = out }
+        let awayFlag = FileManager.default.fileExists(atPath: Store.awayFile)
+        if awayFlag != away { away = awayFlag }   // `Spyglass away on|off` from a terminal
+        awayBridge.sync(out)
         resolveSwitches(out, now: now)
         resolveReplies(out, now: now)
         resolveRenames(out, now: now)
@@ -1138,6 +1141,31 @@ final class Store: ObservableObject {
         }
         return sessions.filter { $0.state == "waiting" }.min { since($0) < since($1) }
     }
+    // MARK: Away mode (see Away.swift)
+
+    /// On while you're away: switched on by hand (the header button, `Spyglass away on`) via the away-on file, which the
+    /// hooks and CLI share, or automatically (screen lock / idle, AwayWatch). Needs away.json.
+    @Published var away: Bool = FileManager.default.fileExists(atPath: Store.home.path + "/away-on")
+    @Published var autoAway = false
+    @Published var awayHint: String?
+    var awayActive: Bool { awayBridge.configured && (away || autoAway) }
+    lazy var awayBridge = AwayBridge(store: self)
+    static var awayFile: String { Store.home.path + "/away-on" }
+    func toggleAway() {
+        awayBridge.reloadConfig()
+        guard awayBridge.configured else {
+            awayHint = "Away mode needs a Telegram bot: run /spyglass:away setup"
+            DispatchQueue.main.asyncAfter(deadline: .now() + 8) { [weak self] in self?.awayHint = nil }
+            return
+        }
+        let on = !(away || autoAway)
+        autoAway = false
+        if on { FileManager.default.createFile(atPath: Store.awayFile, contents: Data("Away mode is on.\n".utf8)) }
+        else { try? FileManager.default.removeItem(atPath: Store.awayFile) }
+        away = on
+        reload()
+    }
+
     /// ⚙ → Allow from the panel (see Risk.panelAllow). Published so the cards redraw when it changes.
     @Published var panelAllow: Bool = Risk.panelAllow
     func setPanelAllow(_ on: Bool) { Risk.setPanelAllow(on); panelAllow = on }

@@ -740,6 +740,13 @@ struct SpyglassView: View {
                                ? "Allow from the panel is on. Click to turn it off: prompts then offer only Go to tab or Deny"
                                : "Allow from the panel is off: prompts offer only Go to tab or Deny. Click to turn it back on",
                            tint: store.panelAllow ? .white.opacity(0.75) : .orange) { store.setPanelAllow(!store.panelAllow) }
+                // Away mode: what needs you goes to your phone. Green = on; the hover says why when it's on by itself.
+                IconButton(symbol: store.awayActive ? "iphone.radiowaves.left.and.right" : "iphone",
+                           help: store.awayActive
+                               ? (store.away ? "Away mode is on: what needs you goes to your phone. Click to turn it off"
+                                             : "Away mode switched on by itself (screen locked or idle). Click to turn it off until you're back")
+                               : "Away mode is off. Click to send what needs you to your phone (Telegram)",
+                           tint: store.awayActive ? accent : .white.opacity(0.75)) { store.toggleAway() }
                 IconButton(symbol: store.compact ? "rectangle.grid.1x2" : "list.bullet",
                            help: store.compact ? "Full rows" : "Compact view") { store.toggleCompact() }
                 IconButton(symbol: store.muted ? "speaker.slash" : "speaker.wave.2",
@@ -747,6 +754,9 @@ struct SpyglassView: View {
                 IconButton(symbol: store.collapsed ? "chevron.down" : "chevron.up",
                            help: store.collapsed ? "Expand" : "Collapse") { store.toggleCollapse() }
                 IconButton(symbol: "xmark", help: "Hide Spyglass (bring it back from the menu bar)") { store.hidePanel() }
+            }
+            if let h = store.awayHint {
+                Text(h).font(.system(size: 11, weight: .medium)).foregroundColor(.orange).fixedSize(horizontal: false, vertical: true)
             }
             if store.showWelcome && !store.collapsed { WelcomeCard(store: store) }
             if !store.limits.isEmpty { UsageLine(limits: store.limits) }

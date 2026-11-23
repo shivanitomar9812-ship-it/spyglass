@@ -8,7 +8,7 @@ import SwiftUI
 /// --snapshot <out.png>: render the panel from the same state to a PNG, then exit.
 @MainActor func runTestMode() -> Bool {
     let args = CommandLine.arguments
-    guard args.contains("--selftest") || args.contains("--snapshot") else { return false }
+    guard args.contains("--selftest") || args.contains("--snapshot") || args.contains("--away-selftest") else { return false }
     Store.snapshotMode = true
     TokenCounter.forceSynchronous = true
     let store = Store()
@@ -28,11 +28,20 @@ import SwiftUI
             if k == "welcome" { store.showWelcome = v == "true" }
             if k == "collapsed" { store.collapsed = v == "true" }
             if k == "query" { store.query = v }
+            if k == "away" { store.away = v == "true" }
             if k.hasPrefix("peekOpen:") { store.peekOpen.insert(String(k.dropFirst(9))) }
             if ["soundDone", "soundNeeds", "autoShow"].contains(k) {
                 switch k { case "soundDone": store.soundDone = v == "true"; case "soundNeeds": store.soundNeeds = v == "true"; default: store.autoShow = v == "true" }
             }
         }
+    }
+    if args.contains("--away-selftest") {   // run the phone bridge against SPYGLASS_TELEGRAM_API for N seconds, reloading as fixtures change
+        let secs = args.firstIndex(of: "--away-selftest").flatMap { $0 + 1 < args.count ? Double(args[$0 + 1]) : nil } ?? 3
+        store.awayBridge.reloadConfig()
+        if FileManager.default.fileExists(atPath: Store.awayFile) { store.away = true }
+        let end = Date().addingTimeInterval(secs)
+        while Date() < end { store.reload(); RunLoop.main.run(until: Date().addingTimeInterval(0.2)) }
+        return true
     }
     var wakes: [String] = []
     store.onNeedsYou = { wakes.append($0.id) }

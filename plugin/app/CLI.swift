@@ -98,6 +98,7 @@ enum CLI {
         case ("hook", "answer"): return hookAnswer()
         case ("json", _): return json(Array(args.dropFirst()))
         case ("doctor", _): return doctor(Array(args.dropFirst()))
+        case ("away", _): return away(Array(args.dropFirst()))
         default: return 2
         }
     }

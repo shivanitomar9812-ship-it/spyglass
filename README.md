@@ -44,6 +44,7 @@ Running several Claude Code sessions at once? Spyglass keeps a small always-on-t
 | **Rename** (pencil on hover) | runs `/rename` and renames the terminal tab to match |
 | **Resume** an ended session | opens a new tab in the same terminal and runs `claude --resume` in its folder |
 | **Jump** (click the row, or ↗) | brings that exact tab to the front |
+| **Allow once / Deny from your phone** (away mode) | while you're away, what needs you goes to a private Telegram chat; Allow once / Deny buttons there answer permission prompts. Risky commands only get Deny. See [Away mode](#away-mode) |
 
 The panel stays out of the way: it never takes focus from your editor, ✕ hides it (the menu bar icon brings it back), and it **comes back by itself** when a session newly needs you.
 
@@ -127,6 +128,16 @@ The editor extension is a thin loader for `~/.claude/spyglass/editor-core.js`, w
 | A session is missing | Only sessions running on this Mac show up (not Claude desktop app or cloud sessions); sessions idle for 12 hours are summarised at the bottom |
 | Anything not working as described | Run `/spyglass:doctor` in the session: it checks the panel, that session's hooks, the statusline, the editor extension and leftovers, and says what to fix |
 | Something else | `~/.claude/spyglass/spyglass.log` has the panel's starts, exits and why it came back; open an issue with it and your Claude Code version |
+
+## Away mode
+
+Step away from the Mac and still unblock your sessions. With away mode on, a permission prompt, a question, or a turn that ends asking you something is sent to a private Telegram chat with the session name, its folder and the command. Permission prompts have **Allow once** and **Deny** buttons; questions and asks arrive as text and are answered at the Mac. The message loses its buttons when you answer at the Mac.
+
+1. Create a bot: message @BotFather in Telegram, `/newbot`, copy the token.
+2. In Claude Code run `/spyglass:away setup` and follow it: it has you run `! "$HOME/.claude/spyglass/Spyglass" away setup` yourself, so the token is typed hidden and never enters a Claude conversation. Message your new bot once so Spyglass learns your chat.
+3. Switch it on with the phone button in the panel header, or `Spyglass away on`. By default it also turns itself on when the screen locks or after 10 idle minutes, and off when you're back.
+
+It follows the same rules as the panel: risky commands get no Allow (only Deny), the header lock turns Allow off for the phone too, a button works only for the prompt it was sent for and for one hour, and only your chat can answer. Settings in `~/.claude/spyglass/away.json`: `"finished": true` also pings when a session finishes, `"auto": false` turns the automatic switch off, `"idle_minutes"`. Telegram bot chats aren't end-to-end encrypted: see [SECURITY.md](SECURITY.md).
 
 ## Configuration
 

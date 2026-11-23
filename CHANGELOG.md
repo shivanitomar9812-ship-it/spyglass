@@ -2,6 +2,9 @@
 
 All releases so far were made on 2026-11-22. Versions before 0.16.0 were released under the name Tower. Bugs that escaped to a release, and the check that now catches each, are in [HARNESS.md](HARNESS.md).
 
+## 0.31.0
+- Away mode: with the phone button in the header (or `Spyglass away on`, or automatically on screen lock / idle), permission prompts, questions and plain-text asks go to a private Telegram chat, and Allow once / Deny buttons there answer permission prompts. Risky commands and the Allow lock still mean no Allow; only your chat can answer; buttons expire after an hour. Set up with `/spyglass:away setup` (the token is typed hidden in your own terminal). Off until set up; Spyglass makes no network calls otherwise.
+
 ## 0.30.1
 - Same as 0.30.0, which never got a GitHub release: its CI build failed on a test-timing bug (fixed).
 
