@@ -39,7 +39,11 @@ case "$cmd" in
     kind=rc; want="${cmd#rc:}"
     [ -n "$sid" ] && [ -n "$cpid" ] || exit 3
     # Only an idle or finished session: /remote-control typed into a working one would queue behind the turn.
-    case "$("$SG" json get "$home/sessions/$sid.json" .status)" in working|waiting) exit 4 ;; esac ;;
+    # Claude Code's own registry is the authority (always current); a session's hook file can be stale for hours when its
+    # hooks went quiet. The hook file only decides when the registry has no status.
+    rs=$("$SG" json get "${SPYGLASS_CLAUDE_DIR:-$HOME/.claude}/sessions/$cpid.json" .status)
+    if [ -n "$rs" ]; then [ "$rs" = idle ] || exit 4
+    else case "$("$SG" json get "$home/sessions/$sid.json" .status)" in working|waiting) exit 4 ;; esac; fi ;;
   rename:*)
     kind=rename; name="${cmd#rename:}"
     # One line, 1-80 chars, no control characters: it is typed after "/rename " into Claude's input box.

@@ -112,6 +112,16 @@ rc_send rc:on rc1 >/dev/null 2>&1; eq "rc:on refused while working" 4 $?
 echo '{"status":"waiting"}' > "$SPYGLASS_HOME/sessions/rc1.json"
 rc_send rc:off rc1 >/dev/null 2>&1; eq "rc:off refused while waiting" 4 $?
 eq "nothing typed for refused rc" "" "$(typed)"
+# Escaped (0.32.0): a session whose hooks went quiet kept a stale "working" hook file for hours, and send.sh refused to
+# disconnect it although Claude Code's registry said idle. The registry decides.
+echo '{"status":"working"}' > "$SPYGLASS_HOME/sessions/rc1.json"
+echo '{"pid":1,"sessionId":"rc1","status":"idle","bridgeSessionId":"session_x"}' > "$reg"; : > "$SPYGLASS_SEND_LOG"
+rc_send rc:off rc1 >/dev/null 2>&1; eq "stale hook file 'working', registry idle: allowed (menu opened, exit 5)" 5 $?
+echo '{"pid":1,"sessionId":"rc1","status":"busy","bridgeSessionId":"session_x"}' > "$reg"; : > "$SPYGLASS_SEND_LOG"
+echo '{"status":"idle"}' > "$SPYGLASS_HOME/sessions/rc1.json"
+rc_send rc:off rc1 >/dev/null 2>&1; eq "registry busy beats a stale idle hook file" 4 $?
+eq "...and types nothing" "" "$(typed)"
+echo '{"pid":1,"sessionId":"rc1"}' > "$reg"
 echo '{"status":"idle"}' > "$SPYGLASS_HOME/sessions/rc1.json"
 # Connect: types /remote-control and waits for Claude Code to record the connection.
 disconnect; : > "$SPYGLASS_SEND_LOG"

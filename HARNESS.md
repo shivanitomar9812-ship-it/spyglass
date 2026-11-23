@@ -106,3 +106,4 @@ Covered by fixture tests only; each needs one live session before the README can
 - Ghostty, Warp, kitty and other terminals: detection, jump
 - Global shortcuts ⌃⌥S / ⌃⌥J (the selection ⌃⌥J makes is tested; the key press is not)
 - Tests must not depend on what's installed on the machine running them; CI (a clean Mac) is the check.
+| 0.32.0 | Remote Control couldn't be turned off for a session whose hooks had gone quiet: send.sh read its stale hook status ("working", 19 h old) instead of Claude Code's registry | tests only used a fresh hook file → `send_test.sh`: stale hook `working` + registry idle is allowed, registry busy is refused |
